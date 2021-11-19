@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from functools import wraps
 import matplotlib.pyplot as plt
-from numpy import empty, exp, isreal, linspace
+from numpy import empty, exp, inf, isreal, linspace
 from scipy.integrate import solve_ivp
 from scipy.optimize import root_scalar
 from time import perf_counter
@@ -26,7 +26,7 @@ class Katz(object):
         self.rho_s, self.rho_f = 3300, 2900  # Only for KatzPTF
         self.deltaS = 300  # Only for KatzPTF
 
-    def updateConst(KatzFunc):  # Decorator to update parameter values
+    def updateConst(KatzFunc):  # Decorator to update parameter values.
         @wraps(KatzFunc)
         def KatzFuncWrapper(*args, **kwargs):
             if kwargs.get('inputConst'):
@@ -195,8 +195,8 @@ class Katz(object):
 
         # Integrate the coupled system of ordinary differential equations
         sol = solve_ivp(deriv, [presGPaStart, presGPaEnd], [tempStart, Fstart],
-                        method='LSODA', dense_output=True,
-                        atol=1e-5, rtol=1e-4)
+                        method='LSODA', max_step=inf, dense_output=True,
+                        atol=5e-8, rtol=5e-5)
         return sol.sol
 
 

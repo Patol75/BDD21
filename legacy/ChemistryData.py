@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from numba import float64
 from numba.types import unicode_type
 from numba.typed import Dict
@@ -18,8 +17,7 @@ for element in ["Nb", "P", "Ta", "V"]:
     valency[element] = 5
 
 radii = {}
-# Shannon - Acta Crystallographica (1976)
-# Updated values from Wood and Blundy - Treatise on Geochemistry (2014)
+# Shannon; Acta Cryst. (1976)
 radii["Ba"], radii["Ce"] = array([1.35, 1.42]), array([1.01, 1.143])
 radii["Co"], radii["Cr"] = array([0.745, 0.9]), array([0.615, nan])
 radii["Cs"], radii["Dy"] = array([1.67, 1.74]), array([0.912, 1.027])
@@ -41,7 +39,7 @@ radii["V"], radii["Y"] = array([0.54, nan]), array([0.9, 1.019])
 radii["Yb"], radii["Zr"] = array([0.868, 0.985]), array([0.72, 0.84])
 
 part_coeff = {}
-# McKenzie and O'Nions - Journal of Petrology (1995)
+# McKenzie and O'Nions; Journal of Petrology (1995)
 part_coeff["Na"] = array([1e-5, 0.05, 0.2, 0.39, 0., 0.04])
 part_coeff["P"] = array([0., 0.03, 0.03, 0., 0., 0.1])
 part_coeff["K"] = array([1.8e-4, 1e-3, 2e-3, 0.18, 1e-4, 1e-3])
@@ -64,7 +62,7 @@ part_coeff["Hf"] = array([0.01, 0.01, 0.22, 0.01, 0., 0.44])
 part_coeff["Ta"] = array([5e-3, 5e-3, 0.02, 0., 0., 0.04])
 part_coeff["Pb"] = array([1e-4, 1.3e-3, 0.01, 0.36, 0., 5e-4])
 part_coeff["Th"] = array([1e-4, 1e-4, 2.6e-4, 0.05, 0., 1e-4])
-# McKenzie and O'Nions - Journal of Petrology (1991)
+# McKenzie and O'Nions; Journal of Petrology (1991)
 part_coeff["La"] = array([4e-4, 2e-3, 0.054, 0.27, 0.01, 0.01])
 part_coeff["Ce"] = array([5e-4, 3e-3, 0.098, 0.2, 0.01, 0.021])
 part_coeff["Pr"] = array([8e-4, 4.8e-3, 0.15, 0.17, 0.01, 0.054])
@@ -80,12 +78,11 @@ part_coeff["Tm"] = array([1.5e-3, 0.04, 0.29, 0.036, 0.01, 3.])
 part_coeff["Yb"] = array([1.5e-3, 0.049, 0.28, 0.031, 0.01, 4.03])
 part_coeff["Lu"] = array([1.5e-3, 0.06, 0.28, 0.025, 0.01, 5.5])
 part_coeff["U"] = array([1e-4, 1e-4, 3.6e-4, 0.11, 0., 1e-4])
-# Code from McKenzie and O'Nions - Journal of Petrology (1995)
+# Code from McKenzie and O'Nions; Journal of Petrology (1995)
 part_coeff["Li"] = array([0., 0., 0.59, 0., 0., 0.])
 part_coeff["Cu"] = array([0., 0., 0.36, 0., 0., 0.])
 part_coeff["Zn"] = array([0., 0., 0., 0., 0., 0.])
-
-# Salters and Stracke - Geochemistry, Geophysics, Geosystems (2004)
+# Salters and Stracke; Geochemistry, Geophysics, Geosystems (2004)
 DM_SS_2004 = {"La": 0.234, "Ce": 0.772, "Pr": 0.131, "Nd": 0.713, "Sm": 0.27,
               "Eu": 0.107, "Gd": 0.395, "Tb": 0.075, "Dy": 0.531, "Ho": 0.122,
               "Er": 0.371, "Tm": 0.06, "Yb": 0.401, "Lu": 0.063, "Hf": 0.199,
@@ -94,10 +91,9 @@ DM_SS_2004 = {"La": 0.234, "Ce": 0.772, "Pr": 0.131, "Nd": 0.713, "Sm": 0.27,
               "Li": 0.7, "Sc": 16.3, "V": 79, "Cr": 2500, "Ni": 1960,
               "Na": 2151.4, "K": 60, "Mn": 1045, "P": 40.7, "Co": 106,
               "Ba": 1.2, "Ga": 3.2, "Cu": 30, "Zn": 56, "Cs": 1.32e-3}
-
-# Na to U: McKenzie and O'Nions - Journal of Petrology (1995)
-# La to Lu: McKenzie and O'Nions - Journal of Petrology (1991)
-# Li to Ra: Code from McKenzie and O'Nions - Journal of Petrology (1995)
+# McKenzie and O'Nions; Journal of Petrology (1995) -> Na to U
+# McKenzie and O'Nions; Journal of Petrology (1991) -> La to Lu
+# Code from McKenzie and O'Nions; Journal of Petrology (1995) -> Li to Ra
 PM_MO_1995 = {"Na": 1800, "P": 61, "K": 200, "Sc": 12, "Ti": 1020, "V": 103,
               "Cr": 3000, "Co": 105, "Ni": 2000, "Ga": 3.7, "Rb": 0.62,
               "Sr": 20, "Y": 3.45, "Zr": 8.51, "Nb": 0.54, "Cs": 0.01,
@@ -107,15 +103,10 @@ PM_MO_1995 = {"Na": 1800, "P": 61, "K": 200, "Sc": 12, "Ti": 1020, "V": 103,
               "Ho": 0.13, "Er": 0.372, "Tm": 0.058, "Yb": 0.372, "Lu": 0.057,
               "Li": 2.7, "Mn": 1000, "Cu": 40, "Zn": 68, "Ra": 6.38e-9}
 
-# Ball, Duvernay and Davies - Geochemistry, Geophysics, Geosystems (2022)
-quad_poly_coeff = Dict.empty(key_type=unicode_type, value_type=float64[:, :])
-quad_poly_coeff["ol_spl"] = array([[-0.115, 0.314, 0.318],
-                                   [-0.039, 0.126, 0.419]])
-quad_poly_coeff["ol_gnt"] = array([[0.048, -0.558, 1.298],
-                                   [-0.003, 0.035, 0.445]])
-quad_poly_coeff["cpx"] = array([[0.037, -0.229, -0.606],
-                                [-0.011, 0.112, 0.058]])
-quad_poly_coeff["spl"] = array([[0.026, -0.013, -0.087],
-                                [-0.004, 0.004, 0.02]])
-quad_poly_coeff["gnt"] = array([[-0.005, 0.078, -0.557],
-                                [-0.001, 0.033, 0.008]])
+# Ball, Duvernay and Davies; JGR: Solid Earth (2021)
+poly_coeffs = Dict.empty(key_type=unicode_type, value_type=float64[:, :])
+poly_coeffs["Cpx"] = array([[0.037, -0.229, -0.606], [-0.011, 0.112, 0.058]])
+poly_coeffs["Ol_spl"] = array([[-0.115, 0.314, 0.318], [-0.039, 0.126, 0.419]])
+poly_coeffs["Ol_gnt"] = array([[0.048, -0.558, 1.298], [-0.003, 0.035, 0.445]])
+poly_coeffs["Spl"] = array([[0.026, -0.013, -0.087], [-0.004, 0.004, 0.02]])
+poly_coeffs["Gnt"] = array([[-0.005, 0.078, -0.557], [-0.001, 0.033, 0.008]])
