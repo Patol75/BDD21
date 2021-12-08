@@ -109,7 +109,7 @@ PM_MO_1995 = {"Na": 1800, "P": 61, "K": 200, "Sc": 12, "Ti": 1020, "V": 103,
 
 # Ball, Duvernay and Davies - Geochemistry, Geophysics, Geosystems (2022)
 quad_poly_coeff = Dict.empty(key_type=unicode_type, value_type=float64[:, :])
-quad_poly_coeff["ol_spl"] = array([[-0.115, 0.314, 0.318],
+quad_poly_coeff["ol_spl"] = array([[-0.115, 0.031, 0.318],
                                    [-0.039, 0.126, 0.419]])
 quad_poly_coeff["ol_gnt"] = array([[0.048, -0.558, 1.298],
                                    [-0.003, 0.035, 0.445]])
