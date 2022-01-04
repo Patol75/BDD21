@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from functools import wraps
 import matplotlib.pyplot as plt
-from numpy import empty, exp, isreal, linspace
+from numpy import clip, empty, exp, isreal, linspace
 from scipy.integrate import solve_ivp
 from scipy.optimize import root_scalar
 from time import perf_counter
@@ -11,16 +11,15 @@ from time import perf_counter
 # Katz et al. (2003)
 class Katz(object):
     def __init__(self):  # Parameters included in Katz et al. (2003)
-        self.A1, self.A2, self.A3 = 1085.7 + 273.15, 132.9, -5.1
-        self.B1, self.B2, self.B3 = 1475 + 273.15, 80, -3.2
-        self.C1, self.C2, self.C3 = 1780 + 273.15, 45, -2
-        self.beta1, self.beta2 = 1.5, 1.5
+        self.A1, self.A2, self.A3 = 1372.08594887, 144.8165676, -7.43835256
+        self.B1, self.B2, self.B3 = 1693.01819245, 87.89109184, -2.37035359
+        self.C1, self.C2, self.C3 = 2019.27356, 32.1404330, -9.11232998e-03
+        self.D1, self.D2, self.D3 = 0.12023529, 0.02899709, 0.0024596
+        self.beta1, self.beta2 = 1.5, 1.2
         self.D_H2O, self.X_H2O_bulk = 0.01, 0
         self.gam, self.K = 0.75, 43
         self.ki1, self.ki2 = 12, 1
         self.lam = 0.6
-        self.M_cpx = 0.17
-        self.r0, self.r1 = 0.5, 0.08
         self.c_P = 1000  # Only for KatzPTF
         self.alpha_s, self.alpha_f = 4e-5, 6.8e-5  # Only for KatzPTF
         self.rho_s, self.rho_f = 3300, 2900  # Only for KatzPTF
@@ -44,7 +43,8 @@ class Katz(object):
         T_sol = self.A1 + self.A2 * presGPa + self.A3 * presGPa ** 2
         T_liq_lherz = self.B1 + self.B2 * presGPa + self.B3 * presGPa ** 2
         T_liq = self.C1 + self.C2 * presGPa + self.C3 * presGPa ** 2
-        F_cpx_out = self.M_cpx / (self.r0 + self.r1 * presGPa)
+        F_cpx_out = clip(self.D1 + self.D2 * presGPa
+                         + self.D3 * presGPa ** 2, 0, 1)
         T_cpx_out = (F_cpx_out ** (1 / self.beta1) * (T_liq_lherz - T_sol)
                      + T_sol)
         return T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out
@@ -154,6 +154,7 @@ class Katz(object):
             dT_sol = self.A2 + 2 * self.A3 * presGPa
             dT_liq_lherz = self.B2 + 2 * self.B3 * presGPa
             dT_liq = self.C2 + 2 * self.C3 * presGPa
+            dF_cpx_out = self.D2 + 2 * self.D3 * presGPa
             # Derivative correction accounting for the presence of water
             dH2O = (self.gam * self.K * self.X_H2O_bulk ** self.gam
                     * (1 - self.D_H2O)
@@ -170,12 +171,12 @@ class Katz(object):
                 # into multiple terms
                 A = ((F - F_cpx_out) / (1 - F_cpx_out)) ** (1 / self.beta2)
                 B = T_liq - T_cpx_out
-                dAdP_F = (F_cpx_out ** 2 * self.r1 / self.M_cpx / self.beta2
+                dAdP_F = (-dF_cpx_out / self.beta2
                           * (F - F_cpx_out) ** (1 / self.beta2)
                           * (1 / (F - F_cpx_out) - 1 / (1 - F_cpx_out))
                           / (1 - F_cpx_out) ** (1 / self.beta2))
-                dCdP_F = (-F_cpx_out ** ((self.beta1 + 1) / self.beta1)
-                          * self.r1 / self.M_cpx / self.beta1
+                dCdP_F = (F_cpx_out ** ((1 - self.beta1) / self.beta1)
+                          * dF_cpx_out / self.beta1
                           * (T_liq_lherz - T_sol)
                           + F_cpx_out ** (1 / self.beta1)
                           * (dT_liq_lherz - dT_sol) + dT_sol)

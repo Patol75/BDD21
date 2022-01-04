@@ -12,29 +12,24 @@ cc.verbose = True
 
 # Main melt chemistry function that returns the bulk partition coeffients
 @cc.export('mineralogy', 'Tuple((f8[:], f8[:], f8[:, :]))'
-           '(f8, f8, f8, f8[:, :], f8[:, :], u8[:], '
+           '(f8, f8, f8[:], f8[:], f8[:], f8[:, :], f8[:, :], u8[:], '
            'DictType(unicode_type, f8[:, :]), f8, '
            'DictType(unicode_type, f8[:]), f8, f8)')
-def mineralogy(X, X_0, P_0, D, ri, val, quad_poly_coeff, eNd, part_arr,
-               X_spl_in, X_gnt_out):
+def mineralogy(X, X_0, Fn_0_spl, Fn_0_gnt, pn, D, ri, val,
+               quad_poly_coeff, eNd, part_arr, X_spl_in, X_gnt_out):
     # Pressure and temperature interpolated from melt fraction
     P = interp(X, part_arr["melt_fraction"], part_arr["pressure"])
     T = interp(X, part_arr["melt_fraction"], part_arr["temperature"])
 
     # Proportions of phases remaining in the residual solid per aluminous phase
     Fn_spl, Fn_gnt = solid_composition(X, P, quad_poly_coeff, eNd)
-    Fn_0_spl, Fn_0_gnt = solid_composition(X_0, P_0, quad_poly_coeff, eNd)
+    Fn = al_phase_select(X, X_spl_in, X_gnt_out, Fn_spl, Fn_gnt)
 
     # Proportions of phases entering the melt per aluminous phase
-    if X > 0:
+    if X > X_0:
         pn_spl = (Fn_0_spl * (1 - X_0) - Fn_spl * (1 - X)) / (X - X_0)
         pn_gnt = (Fn_0_gnt * (1 - X_0) - Fn_gnt * (1 - X)) / (X - X_0)
-    else:
-        pn_spl, pn_gnt = zeros(6), zeros(6)
-
-    # Final proportions based on the stability of the aluminous phase
-    Fn = al_phase_select(X, X_spl_in, X_gnt_out, Fn_spl, Fn_gnt)
-    pn = al_phase_select(X, X_spl_in, X_gnt_out, pn_spl, pn_gnt)
+        pn = al_phase_select(X, X_spl_in, X_gnt_out, pn_spl, pn_gnt)
 
     # Partition coefficients between all elements and mineral phases considered
     Dn = partition_coefficient(P, T, X, D, ri, val, X_spl_in, X_gnt_out)

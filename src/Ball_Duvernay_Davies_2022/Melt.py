@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from functools import wraps
 import matplotlib.pyplot as plt
-from numpy import empty, exp, inf, isreal, linspace
+from numpy import clip, empty, exp, isreal, linspace
 from scipy.integrate import solve_ivp
 from scipy.optimize import root_scalar
 from time import perf_counter
@@ -26,7 +26,7 @@ class Katz(object):
         self.rho_s, self.rho_f = 3300, 2900  # Only for KatzPTF
         self.deltaS = 300  # Only for KatzPTF
 
-    def updateConst(KatzFunc):  # Decorator to update parameter values.
+    def updateConst(KatzFunc):  # Decorator to update parameter values
         @wraps(KatzFunc)
         def KatzFuncWrapper(*args, **kwargs):
             if kwargs.get('inputConst'):
@@ -44,7 +44,7 @@ class Katz(object):
         T_sol = self.A1 + self.A2 * presGPa + self.A3 * presGPa ** 2
         T_liq_lherz = self.B1 + self.B2 * presGPa + self.B3 * presGPa ** 2
         T_liq = self.C1 + self.C2 * presGPa + self.C3 * presGPa ** 2
-        F_cpx_out = self.M_cpx / (self.r0 + self.r1 * presGPa)
+        F_cpx_out = clip(self.M_cpx / (self.r0 + self.r1 * presGPa), 0, 1)
         T_cpx_out = (F_cpx_out ** (1 / self.beta1) * (T_liq_lherz - T_sol)
                      + T_sol)
         return T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out
@@ -195,8 +195,8 @@ class Katz(object):
 
         # Integrate the coupled system of ordinary differential equations
         sol = solve_ivp(deriv, [presGPaStart, presGPaEnd], [tempStart, Fstart],
-                        method='LSODA', max_step=inf, dense_output=True,
-                        atol=5e-8, rtol=5e-5)
+                        method='LSODA', dense_output=True,
+                        atol=1e-5, rtol=1e-4)
         return sol.sol
 
 
