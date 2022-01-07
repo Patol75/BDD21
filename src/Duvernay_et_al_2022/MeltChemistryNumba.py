@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from numba import njit
 from numba.pycc import CC
-from numpy import array, exp, interp, isfinite, zeros
+from numpy import array, ascontiguousarray, exp, interp, isfinite, zeros
 from scipy.constants import Avogadro, pi, R
 
 
@@ -52,9 +52,10 @@ def solid_composition(X, P, quad_poly_coeff, eNd):
     mnrl_prop = {}
     # Proportions of parameterised mineral phases in the residual solid
     for mnrl, coeff in quad_poly_coeff.items():
-        mnrl_prop[mnrl] = min(
-            1, max(coeff @ array([X ** 2 * P ** 2, X ** 2 * P, X ** 2,
-                                  X * P ** 2, X * P, X, P ** 2, P, 1]), 0))
+        mnrl_prop[mnrl] = min(1, max(ascontiguousarray(coeff)
+                                     @ array([X ** 2 * P ** 2, X ** 2 * P,
+                                              X ** 2, X * P ** 2, X * P, X,
+                                              P ** 2, P, 1]), 0))
 
     # Proportions of mineral phases
     Fn = zeros(6)  # Order: [ol, opx, cpx, plg, spl, gnt]
@@ -105,6 +106,7 @@ def part_coeff_same_charge(Da, E, ro, ri, ra, T):
 def partition_coefficient(P, T, X, D, ri, val, Fn):
     Dn = D.copy()  # Initialise Dn with constant partition coefficients
 
+    # Isolate desired combinations of valency and coordination
     mask_11 = (val == 1) & isfinite(ri[:, 1])
     mask_21 = (val == 2) & isfinite(ri[:, 1])
     mask_30 = (val == 3) & isfinite(ri[:, 0])

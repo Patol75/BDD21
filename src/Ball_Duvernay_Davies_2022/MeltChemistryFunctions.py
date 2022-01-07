@@ -10,6 +10,7 @@ from MeltChemistryCompiled import mineralogy, solid_composition
 from constants import cs_0, elements, eNd, gnt_out, melt_inputs, spl_in
 
 
+# Calculate mineralogy and chemistry given a melting path
 def run_integrator(part_arr, mask_ode, ode_dX, X_spl_in, X_gnt_out, X_0, P_0,
                    pn_old, cs_old):
     # Right-hand side of the ode system
@@ -49,9 +50,10 @@ def run_integrator(part_arr, mask_ode, ode_dX, X_spl_in, X_gnt_out, X_0, P_0,
                    jac=ode_jac, lband=0, uband=0)
     while solver.status == "running":
         solver.step()
-
+        # Consider elements whose normalised concentrations are low exhausted
         mask_step[solver.y / cs_0[mask_ode] < 1e-6] = False
-
+        # If the integrator time step collapses, consider that an element is
+        # about to exhaust and identify it
         if solver.step_size < 1e-10:
             first_deriv_inc = solver._lsoda_solver._integrator.rwork[
                 20 + mask_step.size:20 + mask_step.size * 2]
@@ -73,6 +75,7 @@ def run_integrator(part_arr, mask_ode, ode_dX, X_spl_in, X_gnt_out, X_0, P_0,
             mnrl_outputs[key_X][0], mnrl_outputs[key_X][1], cs, cl)
 
 
+# Determine melt fractions at which spinel crystallises and garnet exhausts
 def calc_X_spl_in_gnt_out(X_spl_in, X_gnt_out, old_depth, current_depth,
                           part_arr, dTdP_GPa, rho_mantle):
     if current_depth <= spl_in <= old_depth:
@@ -91,6 +94,7 @@ def calc_X_spl_in_gnt_out(X_spl_in, X_gnt_out, old_depth, current_depth,
             part_arr["melt_fraction"][-1], dTdP_GPa, inputConst=melt_inputs)
         T, X_gnt_out = sol(P_gnt_out)
     elif current_depth <= gnt_out <= old_depth:
+        # Interpolate melt fraction at which garnet becomes a stable phase
         X_gnt_out = interp(gnt_out, part_arr["pressure"][::-1] * 1e9
                            / rho_mantle / g, part_arr["melt_fraction"][::-1])
     elif current_depth <= gnt_out and X_gnt_out == 1:
@@ -98,6 +102,7 @@ def calc_X_spl_in_gnt_out(X_spl_in, X_gnt_out, old_depth, current_depth,
     return X_spl_in, X_gnt_out
 
 
+# Update dictionary of arrays based on a fictitious, prior melting path
 def non_zero_initial_melt(part_arr, part_pot_temp, mant_pot_temp, lab_pressure,
                           dTdP_GPa):
     step = 0.02

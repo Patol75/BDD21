@@ -9,6 +9,7 @@ from MeltChemistryCompiled import mineralogy, solid_composition
 from constants import cs_0, elements, eNd, melt_inputs
 
 
+# Calculate mineralogy and chemistry given a melting path
 def run_integrator(part_arr, mask_ode, ode_dX, X_0, P_0, pn_old, cs_old):
     # Right-hand side of the ode system
     # Equations 3 and 4 of White et al. - JGR: Solid Earth (1992)
@@ -51,9 +52,10 @@ def run_integrator(part_arr, mask_ode, ode_dX, X_0, P_0, pn_old, cs_old):
                    jac=ode_jac, lband=0, uband=0)
     while solver.status == "running":
         solver.step()
-
+        # Consider elements whose normalised concentrations are low exhausted
         mask_step[solver.y / cs_0[mask_ode] < 1e-6] = False
-
+        # If the integrator time step collapses, consider that an element is
+        # about to exhaust and identify it
         if solver.step_size < 1e-10:
             first_deriv_inc = solver._lsoda_solver._integrator.rwork[
                 20 + mask_step.size:20 + mask_step.size * 2]
@@ -81,6 +83,7 @@ def run_integrator(part_arr, mask_ode, ode_dX, X_0, P_0, pn_old, cs_old):
     return mask_ode, solver.step_size, Fn, pn, Dn, D_bulk, P_bulk, cs, cl
 
 
+# Update dictionary of arrays based on a fictitious, prior melting path
 def non_zero_initial_melt(part_arr, part_pot_temp, mant_pot_temp, lab_pressure,
                           dTdP_GPa):
     step = 0.02

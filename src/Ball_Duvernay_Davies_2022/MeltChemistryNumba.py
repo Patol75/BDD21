@@ -115,6 +115,7 @@ def part_coeff_same_charge(Da, E, ro, ri, ra, T):
 def partition_coefficient(P, T, X, D, ri, val, X_spl_in, X_gnt_out):
     Dn = D.copy()  # Initialise Dn with constant partition coefficients
 
+    # Isolate desired combinations of valency and coordination
     mask_11 = (val == 1) & isfinite(ri[:, 1])
     mask_21 = (val == 2) & isfinite(ri[:, 1])
     mask_30 = (val == 3) & isfinite(ri[:, 0])
