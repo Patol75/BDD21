@@ -24,12 +24,13 @@ def run_integrator(part_arr, mask_ode, ode_dX, X_spl_in, X_gnt_out, X_0, P_0,
             D_bulk[mask_step], P_bulk[mask_step] = Dn @ Fn, Dn @ pn
             mnrl_outputs[X] = [Fn, pn, Dn, D_bulk, P_bulk]
         D_bulk, P_bulk = mnrl_outputs[X][3], mnrl_outputs[X][4]
-        return cs / (1 - X) - cs / (D_bulk - P_bulk * X)
+        return cs / (1 - X) - cs / (D_bulk * (1 - X_0) - P_bulk * (X - X_0))
 
     # Jacobian of the right-hand side of the ode system
     def ode_jac(X, cs):
         D_bulk, P_bulk = mnrl_outputs[X][3], mnrl_outputs[X][4]
-        return (1 / (1 - X) - 1 / (D_bulk - P_bulk * X)).reshape((1, -1))
+        return (1 / (1 - X) - 1 / (D_bulk * (1 - X_0)
+                                   - P_bulk * (X - X_0))).reshape((1, -1))
 
     mnrl_outputs = {}
     mask_step = ones(mask_ode.sum(), dtype=bool)
@@ -66,7 +67,8 @@ def run_integrator(part_arr, mask_ode, ode_dX, X_spl_in, X_gnt_out, X_0, P_0,
 
     cs, cl = zeros(len(elements)), zeros(len(elements))
     cs[mask_ode] = solver.y[mask_step]
-    cl[mask_ode] = cs[mask_ode] * (1 - X) / (D_bulk - P_bulk * X)[mask_step]
+    cl[mask_ode] = cs[mask_ode] * (1 - X) / (D_bulk * (1 - X_0)
+                                             - P_bulk * (X - X_0))[mask_step]
 
     mask_neg = (cs <= 0) | (cl < 0)
     mask_ode[mask_neg], cs[mask_neg], cl[mask_neg] = False, 0, 0
