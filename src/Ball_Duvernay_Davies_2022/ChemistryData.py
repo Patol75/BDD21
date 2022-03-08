@@ -4,18 +4,18 @@ from numba.types import unicode_type
 from numba.typed import Dict
 from numpy import array, nan
 
-valency = {}
+valence = {}
 for element in ["Cs", "K", "Na", "Rb"]:
-    valency[element] = 1
+    valence[element] = 1
 for element in ["Ba", "Ca", "Co", "Fe", "Mg", "Mn", "Ni", "Ra", "Sr"]:
-    valency[element] = 2
+    valence[element] = 2
 for element in ["Ce", "Cr", "Dy", "Er", "Eu", "Ga", "Gd", "Ho", "La", "Lu",
                 "Nd", "Pr", "Sc", "Sm", "Tb", "Tm", "Y", "Yb"]:
-    valency[element] = 3
+    valence[element] = 3
 for element in ["Hf", "Pb", "Th", "Ti", "U", "Zr"]:
-    valency[element] = 4
+    valence[element] = 4
 for element in ["Nb", "P", "Ta", "V"]:
-    valency[element] = 5
+    valence[element] = 5
 
 radii = {}
 # Shannon - Acta Crystallographica (1976)
@@ -95,6 +95,16 @@ DM_SS_2004 = {"La": 0.234, "Ce": 0.772, "Pr": 0.131, "Nd": 0.713, "Sm": 0.27,
               "Na": 2151.4, "K": 60, "Mn": 1045, "P": 40.7, "Co": 106,
               "Ba": 1.2, "Ga": 3.2, "Cu": 30, "Zn": 56, "Cs": 1.32e-3}
 
+# McDonough and Sun - Chemical Geology (1995)
+PM_MS_1995 = {"La": 0.648, "Ce": 1.675, "Pr": 0.254, "Nd": 1.250, "Sm": 0.406,
+              "Eu": 0.154, "Gd": 0.544, "Tb": 0.099, "Dy": 0.674, "Ho": 0.149,
+              "Er": 0.438, "Tm": 0.068, "Yb": 0.441, "Lu": 0.0675, "Hf": 0.283,
+              "Rb": 0.600, "Sr": 19.9, "Th": 0.0795, "U": 0.0203, "Pb": 0.150,
+              "Nb": 0.658, "Ti": 1205, "Zr": 10.5, "Y": 4.30, "Ta": 0.037,
+              "Li": 1.6, "Sc": 16.2, "V": 82, "Cr": 2625, "Ni": 1960,
+              "Na": 2670, "K": 240, "Mn": 1045, "P": 90, "Co": 105,
+              "Ba": 6.6, "Ga": 4.0, "Cu": 30, "Zn": 55, "Cs": 0.021}
+
 # Na to U: McKenzie and O'Nions - Journal of Petrology (1995)
 # La to Lu: McKenzie and O'Nions - Journal of Petrology (1991)
 # Li to Ra: Code from McKenzie and O'Nions - Journal of Petrology (1995)
@@ -108,14 +118,14 @@ PM_MO_1995 = {"Na": 1800, "P": 61, "K": 200, "Sc": 12, "Ti": 1020, "V": 103,
               "Li": 2.7, "Mn": 1000, "Cu": 40, "Zn": 68, "Ra": 6.38e-9}
 
 # Ball, Duvernay and Davies - Geochemistry, Geophysics, Geosystems (2022)
-quad_poly_coeff = Dict.empty(key_type=unicode_type, value_type=float64[:, :])
-quad_poly_coeff["ol_spl"] = array([[-0.115, 0.031, 0.318],
+mnrl_mode_coeff = Dict.empty(key_type=unicode_type, value_type=float64[:, :])
+mnrl_mode_coeff["ol_spl"] = array([[-0.115, 0.031, 0.318],
                                    [-0.039, 0.126, 0.419]])
-quad_poly_coeff["ol_gnt"] = array([[0.048, -0.558, 1.298],
+mnrl_mode_coeff["ol_gnt"] = array([[0.048, -0.558, 1.298],
                                    [-0.003, 0.035, 0.445]])
-quad_poly_coeff["cpx"] = array([[0.037, -0.229, -0.606],
+mnrl_mode_coeff["cpx"] = array([[0.037, -0.229, -0.606],
                                 [-0.011, 0.112, 0.058]])
-quad_poly_coeff["spl"] = array([[0.026, -0.013, -0.087],
+mnrl_mode_coeff["spl"] = array([[0.026, -0.013, -0.087],
                                 [-0.004, 0.004, 0.02]])
-quad_poly_coeff["gnt"] = array([[-0.005, 0.078, -0.557],
+mnrl_mode_coeff["gnt"] = array([[-0.005, 0.078, -0.557],
                                 [-0.001, 0.033, 0.008]])

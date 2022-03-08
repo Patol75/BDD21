@@ -4,18 +4,18 @@ from numba.types import unicode_type
 from numba.typed import Dict
 from numpy import array, nan
 
-valency = {}
+valence = {}
 for element in ["Cs", "K", "Na", "Rb"]:
-    valency[element] = 1
+    valence[element] = 1
 for element in ["Ba", "Ca", "Co", "Fe", "Mg", "Mn", "Ni", "Ra", "Sr"]:
-    valency[element] = 2
+    valence[element] = 2
 for element in ["Ce", "Cr", "Dy", "Er", "Eu", "Ga", "Gd", "Ho", "La", "Lu",
                 "Nd", "Pr", "Sc", "Sm", "Tb", "Tm", "Y", "Yb"]:
-    valency[element] = 3
+    valence[element] = 3
 for element in ["Hf", "Pb", "Th", "Ti", "U", "Zr"]:
-    valency[element] = 4
+    valence[element] = 4
 for element in ["Nb", "P", "Ta", "V"]:
-    valency[element] = 5
+    valence[element] = 5
 
 radii = {}
 # Shannon - Acta Crystallographica (1976)
@@ -95,6 +95,16 @@ DM_SS_2004 = {"La": 0.234, "Ce": 0.772, "Pr": 0.131, "Nd": 0.713, "Sm": 0.27,
               "Na": 2151.4, "K": 60, "Mn": 1045, "P": 40.7, "Co": 106,
               "Ba": 1.2, "Ga": 3.2, "Cu": 30, "Zn": 56, "Cs": 1.32e-3}
 
+# McDonough and Sun - Chemical Geology (1995)
+PM_MS_1995 = {"La": 0.648, "Ce": 1.675, "Pr": 0.254, "Nd": 1.250, "Sm": 0.406,
+              "Eu": 0.154, "Gd": 0.544, "Tb": 0.099, "Dy": 0.674, "Ho": 0.149,
+              "Er": 0.438, "Tm": 0.068, "Yb": 0.441, "Lu": 0.0675, "Hf": 0.283,
+              "Rb": 0.600, "Sr": 19.9, "Th": 0.0795, "U": 0.0203, "Pb": 0.150,
+              "Nb": 0.658, "Ti": 1205, "Zr": 10.5, "Y": 4.30, "Ta": 0.037,
+              "Li": 1.6, "Sc": 16.2, "V": 82, "Cr": 2625, "Ni": 1960,
+              "Na": 2670, "K": 240, "Mn": 1045, "P": 90, "Co": 105,
+              "Ba": 6.6, "Ga": 4.0, "Cu": 30, "Zn": 55, "Cs": 0.021}
+
 # Na to U: McKenzie and O'Nions - Journal of Petrology (1995)
 # La to Lu: McKenzie and O'Nions - Journal of Petrology (1991)
 # Li to Ra: Code from McKenzie and O'Nions - Journal of Petrology (1995)
@@ -107,20 +117,20 @@ PM_MO_1995 = {"Na": 1800, "P": 61, "K": 200, "Sc": 12, "Ti": 1020, "V": 103,
               "Ho": 0.13, "Er": 0.372, "Tm": 0.058, "Yb": 0.372, "Lu": 0.057,
               "Li": 2.7, "Mn": 1000, "Cu": 40, "Zn": 68, "Ra": 6.38e-9}
 
-# Ball, Duvernay and Davies - Geochemistry, Geophysics, Geosystems (2022)
-quad_poly_coeff = Dict.empty(key_type=unicode_type, value_type=float64[:])
-quad_poly_coeff["ol"] = array([1.81671615e-2, -0.285097431, 2.09508358,
-                               1.15765041e-2, -0.153264241, 0.519251044,
-                               1.49657483e-3, -1.47300510e-2, 0.572815784])
-quad_poly_coeff["cpx"] = array([-0.2047959, 2.51468695, -9.2496204,
-                                0.08239543, -0.69763766, 1.01194652,
-                                -0.01305171, 0.12975777, 0.02813079])
-quad_poly_coeff["plg"] = array([0.06651726, -0.54734068, 1.32881577,
+# Duvernay et al. - ??? (2022)
+mnrl_mode_coeff = Dict.empty(key_type=unicode_type, value_type=float64[:])
+mnrl_mode_coeff["ol"] = array([0.0181671615, -0.285097431, 2.09508358,
+                               0.0115765041, -0.153264241, 0.519251044,
+                               0.00149657483, -0.0147300510, 0.572815784])
+mnrl_mode_coeff["cpx"] = array([-0.25036871, 2.78713468, -9.46264736,
+                                0.09174549, -0.71170887, 0.69280362,
+                                -0.0116333, 0.11198731, 0.07801724])
+mnrl_mode_coeff["plg"] = array([0.06651726, -0.54734068, 1.32881577,
                                 -0.04595634, 0.42208015, -1.09547831,
                                 0.00857713, -0.09025538, 0.11601566])
-quad_poly_coeff["spl"] = array([0.258476166, -0.683287781, 0.458774273,
-                                -0.160151256, 0.398577020, -0.322268100,
-                                -1.01361016e-2, 2.50774987e-2, -2.14620086e-4])
-quad_poly_coeff["gnt"] = array([-0.07119758, 1.09705268, -4.39109925,
-                                -0.01901873, 0.18302249, -0.45747516,
-                                -0.00822048, 0.10878407, -0.1961238])
+mnrl_mode_coeff["spl"] = array([0.71283726, -1.66713975, 0.70964069,
+                                -0.47930597, 1.11004582, -0.62155505,
+                                -0.01046164, 0.02787388, -0.00288936])
+mnrl_mode_coeff["gnt"] = array([0.00179661, -0.14451851, 0.50083179,
+                                0.01741476, -0.10171984, -0.09913624,
+                                -0.00970282, 0.12271595, -0.20676457])

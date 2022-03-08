@@ -11,15 +11,15 @@ from time import perf_counter
 # Katz et al. (2003)
 class Katz(object):
     def __init__(self):  # Parameters included in Katz et al. (2003)
-        self.A1, self.A2, self.A3 = 1372.08594887, 144.8165676, -7.43835256
-        self.B1, self.B2, self.B3 = 1693.01819245, 87.89109184, -2.37035359
-        self.C1, self.C2, self.C3 = 2019.27356, 32.1404330, -9.11232998e-03
+        self.A1, self.A2, self.A3 = 1374.42637742, 141.38033617, -6.82439927
+        self.B1, self.B2, self.B3 = 1688.67306771, 99.49773072, -4.72456844
+        self.C1, self.C2, self.C3 = 2018.83055, 32.3540649, -0.0467952062
         # Primitive mantle (eNd = 0)
-        self.D1, self.D2, self.D3 = 0.14876471, 0.02397544, 0.00330963
+        self.D1, self.D2, self.D3 = 0.14623529, 0.02031577, 0.00267938
         # Equal mix (eNd = 5)
-        # self.D1, self.D2, self.D3 = 0.13385294, 0.02750388, 0.00267292
+        # self.D1, self.D2, self.D3 = 0.13517647, 0.02272721, 0.00224305
         # Depleted mantle (eNd = 10)
-        # self.D1, self.D2, self.D3 = 0.12023529, 0.02899709, 0.0024596
+        # self.D1, self.D2, self.D3 = 0.12117647, 0.02489205, 0.00191338
         self.beta1, self.beta2 = 1.5, 1.2
         self.D_H2O, self.X_H2O_bulk = 0.01, 0
         self.gam, self.K = 0.75, 43
