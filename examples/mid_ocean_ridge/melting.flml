@@ -69,27 +69,22 @@
     from numpy.random import default_rng
     from constants import domain_dim
 
-    num_particles = 1e4
-    initial_particle_width = 350e3
-    initial_particle_height = 250e3  # Above starting particle_height
-    starting_particle_height = 320e3
-    return (default_rng(0).random((int(num_particles), 2))
-            * (initial_particle_width, initial_particle_height)
-            + (domain_dim[0] / 2 - initial_particle_width / 2,
-               starting_particle_height))</string_value>
+    return default_rng(0).uniform(
+        [domain_dim[0] / 2 - 3e5, domain_dim[1] - 3.4e5],
+        [domain_dim[0] / 2 + 3e5, domain_dim[1] - 9e4], (10_000, 2))</string_value>
           </python>
         </initial_position>
         <attributes>
           <scalar_attribute_array name="katz_mckenzie_bdd21_">
             <dimension>
-              <integer_value rank="0">41</integer_value>
+              <integer_value rank="0">27</integer_value>
             </dimension>
             <python_fields>
               <string_value type="code" language="python" lines="20">def val(X, t, dt, fields, n):
     from numba import float64
     from numba.typed import Dict
     from numba.types import unicode_type
-    from numpy import array, clip, ones, zeros_like
+    from numpy import asarray, clip, count_nonzero, zeros_like
     from scipy.constants import g
 
     from Melt import Katz
@@ -107,9 +102,8 @@
         assert F == 0
 
         return (F, F, 0, presGPa, temp, 0,
-                *ones(cs_0.size, dtype=bool), 1e-6, 1 if depth &gt; spl_in else 0,
-                1 if depth &gt; gnt_out else 0, F, presGPa, *[0, 0, 0, 0, 0, 0],
-                *[0, 0, 0, 0, 0, 0], *cs_0, *zeros_like(cs_0))
+                1e-6, 1 if depth &gt; spl_in else 0, 1 if depth &gt; gnt_out else 0,
+                *[0] * 6, *cs_0, *zeros_like(cs_0))
 
     old_attrs = fields['old%katz_mckenzie_bdd21_']
 
@@ -123,38 +117,30 @@
         temp_src = (T - temp) / dt
     else:
         return (F, old_attrs[1], 0, presGPa, temp, 0,
-                *old_attrs[6:-6 - 2 * cs_0.size], *[0, 0, 0, 0, 0, 0],
-                *old_attrs[-2 * cs_0.size:-cs_0.size], *zeros_like(cs_0))
+                *old_attrs[6:-cs_0.size], *zeros_like(cs_0))
 
     part_arr = Dict.empty(key_type=unicode_type, value_type=float64[:])
-    part_arr["melt_fraction"] = array([old_attrs[1], F])
-    part_arr["pressure"] = array([old_attrs[3], presGPa])
-    part_arr["temperature"] = array([old_attrs[4], T])
+    part_arr["melt_fraction"] = asarray([old_attrs[1], F])
+    part_arr["pressure"] = asarray([old_attrs[3], presGPa])
+    part_arr["temperature"] = asarray([old_attrs[4], T])
 
-    mask_ode = array(old_attrs[6:6 + cs_0.size], dtype=bool)
-    if not mask_ode.any():
-        return F, F, melt_rate, presGPa, T, temp_src, *old_attrs[6:]
+    ode_dX, X_spl_in, X_gnt_out = old_attrs[6:9]
+    cs_old = asarray(old_attrs[15:15 + cs_0.size])
 
-    ode_dX, X_spl_in, X_gnt_out = old_attrs[6 + cs_0.size:9 + cs_0.size]
-    if F / melt_rate &lt; 3 and (old_attrs[2] &gt; 0 or old_attrs[1] == 0):
-        X_0, P_0 = old_attrs[1], old_attrs[3]
-    else:
-        X_0, P_0 = old_attrs[9 + cs_0.size:11 + cs_0.size]
-
-    pn_old = array(old_attrs[17 + cs_0.size:23 + cs_0.size])
-    cs_old = array(old_attrs[23 + cs_0.size:23 + 2 * cs_0.size])
+    if count_nonzero(cs_old) == 0:
+        return (F, F, melt_rate, presGPa, T, temp_src,
+                *old_attrs[6:-cs_0.size], *zeros_like(cs_0))
 
     old_depth = old_attrs[3] * 1e9 / rho_mantle / g
     X_spl_in, X_gnt_out = calc_X_spl_in_gnt_out(
         X_spl_in, X_gnt_out, old_depth, depth, part_arr, dTdP_GPa, rho_mantle)
 
-    mask_ode, ode_dX, Fn, pn, cs, cl = run_integrator(
-        part_arr, mask_ode, ode_dX, X_spl_in, X_gnt_out, X_0, P_0,
-        pn_old, cs_old)
+    ode_dX, Fn, cs, cl = run_integrator(
+        part_arr, ode_dX, X_spl_in, X_gnt_out, cs_old)
 
     return (F, F, melt_rate, presGPa, T, temp_src,
-            *mask_ode, ode_dX, X_spl_in, X_gnt_out, X_0, P_0, *Fn, *pn,
-            *cs, *cl)</string_value>
+            ode_dX, X_spl_in, X_gnt_out, *Fn, *cs, *cl)
+</string_value>
               <store_old_attribute/>
             </python_fields>
           </scalar_attribute_array>
@@ -525,14 +511,17 @@ for i in range(field.node_count):
                 <value name="WholeMesh">
                   <python>
                     <string_value type="code" language="python" lines="20">def val(X, t):
+    from constants import domain_dim
+
     if t == 0:
         return 1, 1
-    elif X[1] &gt; 6.5e5:
+    elif X[1] &gt; domain_dim[1] - 1e4:
         return 5e-11, 5e-11
-    elif X[1] &lt; 6.1e5:
+    elif X[1] &lt; domain_dim[1] - 5e4:
         return 5e-13, 5e-13
     else:
-        value = 299.7615 ** (3.9821e-10 * X[1] ** 2 + -4.8155e-4 * X[1] + 140.6077)
+        value = 299.7615 ** (3.9821e-10 * X[1] ** 2
+                             + -4.8155e-4 * X[1] + 140.6077)
         return value, value</string_value>
                   </python>
                 </value>
@@ -723,14 +712,16 @@ for n in range(field.node_count):
                 <value name="WholeMesh">
                   <python>
                     <string_value type="code" language="python" lines="20">def val(X, t):
-    if X[1] &lt; 6.5e5 or abs(X[0] - 9.9e5) &gt; 3e4:
+    from constants import domain_dim
+
+    if X[1] &lt; domain_dim[1] - 1e4 or abs(X[0] - domain_dim[0] / 2) &gt; 3e4:
         return 6
-    elif X[1] &gt; 6.55e5 and abs(X[0] - 9.9e5) &lt; 5e3:
+    elif X[1] &gt; domain_dim[1] - 5e3 and abs(X[0] - domain_dim[0] / 2) &lt; 5e3:
         return 80
-    elif abs(X[0] - 9.9e5) &lt; 5e3:
+    elif abs(X[0] - domain_dim[0] / 2) &lt; 5e3:
         return 30
     else:
-        return 15 + (6 - 15) / 25e3 * (abs(X[0] - 9.9e5) - 5e3)</string_value>
+        return 15 + (6 - 15) / 25e3 * (abs(X[0] - domain_dim[0] / 2) - 5e3)</string_value>
                   </python>
                 </value>
                 <output/>
@@ -1014,13 +1005,19 @@ for i in range(field.node_count):
         <integer_value rank="0">8</integer_value>
       </period_in_timesteps>
       <maximum_number_of_nodes>
-        <integer_value rank="0">10000000</integer_value>
+        <integer_value rank="0">1000000</integer_value>
       </maximum_number_of_nodes>
-      <enable_gradation>
-        <gradation_parameter>
-          <real_value rank="0">1.2</real_value>
-        </gradation_parameter>
-      </enable_gradation>
+      <anisotropic_gradation>
+        <tensor_field name="Gamma">
+          <anisotropic_symmetric>
+            <python>
+              <string_value type="code" language="python" lines="20">def val(X, t):
+    from numpy import identity
+    return identity(2)</string_value>
+            </python>
+          </anisotropic_symmetric>
+        </tensor_field>
+      </anisotropic_gradation>
       <metric_advection>
         <spatial_discretisation>
           <control_volumes>
@@ -1051,12 +1048,16 @@ for i in range(field.node_count):
           <python>
             <string_value type="code" language="python" lines="20">def val(X, t):
     from numpy import identity, sqrt
+    # from constants import domain_dim
 
-    dist2ridge = sqrt((X[0] - 9.9e5) ** 2 + (X[1] - 6.6e5) ** 2)
+    domain_dim = (1.98e6, 6.6e5)
+
+    dist2ridge = sqrt((X[0] - domain_dim[0] / 2) ** 2
+                      + (X[1] - domain_dim[1]) ** 2)
 
     if dist2ridge &lt;= 2.5e5:
         return (dist2ridge / 2.5e5 * 4.7e3 + 3e2) * identity(2)
-    elif dist2ridge &lt;= 7e5 or X[1] &gt; 6e5:
+    elif dist2ridge &lt;= 7e5 or X[1] &gt; domain_dim[1] - 6e4:
         return 5e3 * identity(2)
     elif dist2ridge &lt;= 9e5:
         return ((dist2ridge - 7e5) / 2e5 * 3e3 + 5e3) * identity(2)
@@ -1067,9 +1068,11 @@ for i in range(field.node_count):
       </tensor_field>
       <tensor_field name="MaximumEdgeLengths">
         <anisotropic_symmetric>
-          <constant>
-            <real_value symmetric="true" rank="2" dim1="dim" dim2="dim" shape="2 2">1e5 0 0 1e5</real_value>
-          </constant>
+          <python>
+            <string_value type="code" language="python" lines="20">def val(X, t):
+    from numpy import identity
+    return 1e5 * identity(2)</string_value>
+          </python>
         </anisotropic_symmetric>
       </tensor_field>
       <aspect_ratio_bound>
@@ -1077,7 +1080,7 @@ for i in range(field.node_count):
       </aspect_ratio_bound>
       <adapt_at_first_timestep>
         <number_of_adapts>
-          <integer_value rank="0">3</integer_value>
+          <integer_value rank="0">5</integer_value>
         </number_of_adapts>
       </adapt_at_first_timestep>
       <zoltan_options>
@@ -1087,28 +1090,22 @@ for i in range(field.node_count):
         <final_partitioner>
           <scotch/>
         </final_partitioner>
-        <load_balancing_approach>
-          <partition/>
-        </load_balancing_approach>
         <element_quality_cutoff>
-          <real_value rank="0">0.6</real_value>
+          <real_value rank="0">0.5</real_value>
         </element_quality_cutoff>
-        <load_imbalance_tolerance>
-          <real_value rank="0">1.25</real_value>
-        </load_imbalance_tolerance>
         <additional_adapt_iterations>
-          <integer_value rank="0">25</integer_value>
+          <integer_value rank="0">10</integer_value>
         </additional_adapt_iterations>
       </zoltan_options>
       <adaptivity_library>
         <libmba2d>
           <quality>
-            <real_value rank="0">0.6</real_value>
+            <real_value rank="0">0.5</real_value>
           </quality>
         </libmba2d>
       </adaptivity_library>
       <adapt_iterations>
-        <integer_value rank="0">5</integer_value>
+        <integer_value rank="0">10</integer_value>
       </adapt_iterations>
     </hr_adaptivity>
   </mesh_adaptivity>
