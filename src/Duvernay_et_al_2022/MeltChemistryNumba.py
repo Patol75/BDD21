@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
+import numpy as np
 from numba import njit
 from numba.pycc import CC
-import numpy as np
-from scipy.constants import Avogadro, pi, R
+from scipy.constants import Avogadro, R, pi
 
 from constants import const, hfse, radio
-
 
 cc = CC("MeltChemistryCompiled")
 cc.target_cpu = "host"
@@ -18,9 +17,7 @@ cc.verbose = True
     "(f8, f8, f8[:], u8[:], f8[:, :], f8[:, :], u8[:],"
     " DictType(unicode_type, f8[:]), f8, DictType(unicode_type, f8[:]))",
 )
-def mineralogy(
-    X, X_0, Fn_0, ele_ind, D, ri, val, mnrl_mode_coeff, eNd, part_arr
-):
+def mineralogy(X, X_0, Fn_0, ele_ind, D, ri, val, mnrl_mode_coeff, ɛNd, part_arr):
     """Determine modal mineral abundances, reaction coefficients and partition
     coefficients."""
     # Pressure and temperature interpolated from melt fraction
@@ -28,7 +25,7 @@ def mineralogy(
     T = np.interp(X, part_arr["melt_fraction"], part_arr["temperature"])
 
     # Modal mineral abundances in the residual solid
-    Fn = solid_composition(X, P, mnrl_mode_coeff, eNd)
+    Fn = solid_composition(X, P, mnrl_mode_coeff, ɛNd)
 
     # Reaction coefficients | Proportions of phases entering the melt
     if X > X_0:
@@ -55,11 +52,9 @@ def al_phase_select(Fn, spl, gnt):
         return spl
 
 
-@cc.export(
-    "solid_composition", "f8[:](f8, f8, DictType(unicode_type, f8[:]), f8)"
-)
+@cc.export("solid_composition", "f8[:](f8, f8, DictType(unicode_type, f8[:]), f8)")
 @njit("f8[:](f8, f8, DictType(unicode_type, f8[:]), f8)")
-def solid_composition(X, P, mnrl_mode_coeff, eNd):
+def solid_composition(X, P, mnrl_mode_coeff, ɛNd):
     """Determine modal mineral abundances in the residual solid"""
     modal_ab = {}
     Fn = np.zeros(6)  # Order: [ol, opx, cpx, plg, spl, gnt]
@@ -94,7 +89,7 @@ def solid_composition(X, P, mnrl_mode_coeff, eNd):
     # Account for systematic differences between primitive and depleted modal
     # abundances using the correction (Figure 3) of
     # Kimura and Kawabata - G-Cubed (2014)
-    KK2014 = 0.04 * eNd / 10
+    KK2014 = 0.04 * ɛNd / 10
     Fn[0] += KK2014
     Fn[1] -= max(KK2014 - Fn[2], 0)
     Fn[2] -= min(KK2014, Fn[2])
@@ -242,12 +237,7 @@ def partition_coefficient(P, T, X, ele_ind, D, ri, val, Fn):
     # # # # # # # # #
     # Clinopyroxene #
     # # # # # # # # #
-    if (
-        mask_11.any()
-        or mask_21.any()
-        or mask_31_const.any()
-        or mask_41_radio.any()
-    ):
+    if mask_11.any() or mask_21.any() or mask_31_const.any() or mask_41_radio.any():
         # Atomic fraction of Mg atoms on the M1 site per six-oxygen
         X_Mg_M1 = al_phase_select(Fn, 0.425 * X + 0.741, 0.191 * X + 0.793)
         # Cation content of Mg on the M2 site in pyroxene per six-oxygen
@@ -386,17 +376,15 @@ def partition_coefficient(P, T, X, ele_ind, D, ri, val, Fn):
         X_Ca = -0.247 * X + 0.355
 
         # Equations A4a-c of Sun and Liang - Chemical Geology (2014)
-        D0 = np.exp(
-            -2.01 + (9.03e4 - 93.02 * P * (37.78 - P)) / R / T - 1.04 * X_Ca
-        )
+        D0 = np.exp(-2.01 + (9.03e4 - 93.02 * P * (37.78 - P)) / R / T - 1.04 * X_Ca)
         r0 = 0.785 + 0.153 * X_Ca
         E = (-1.67 + 2.35 * r0) * 1e3
 
         if mask_21.any():
             # Section 3.11.10.3.3 of Wood and Blundy - Treatise on Geo. (2014)
-            D_Mg = np.exp(
-                (258_210 - 141.5 * T + 5418 * P) / 3 / R / T
-            ) / np.exp(1.9e4 * X_Ca**2 / R / T)
+            D_Mg = np.exp((258_210 - 141.5 * T + 5418 * P) / 3 / R / T) / np.exp(
+                1.9e4 * X_Ca**2 / R / T
+            )
             r_Mg = 0.89e-10
             r0_v2, E_v2 = 0.053 + r0, 2 / 3 * E
             Dn[mask_21, 5] = part_coeff_same_charge(

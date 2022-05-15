@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-import h5py
-from numba import float64
-from numba.types import unicode_type
-from numba.typed import Dict
-import numpy as np
 from pathlib import Path
+
+import h5py
+import numpy as np
+from numba import float64
+from numba.typed import Dict
+from numba.types import unicode_type
 from scipy.constants import g
 from tqdm.contrib.concurrent import process_map
 
+from constants import (T_mantle, adiab_grad, attrib, cs_0, depth_lab, domain_dim,
+                       rho_mantle)
 from MeltChemistryFunctions import non_zero_initial_melt, run_integrator
-from constants import (adiab_grad, attrib, cs_0, depth_lab, domain_dim,
-                       rho_mantle, T_mantle)
 
 
 # Extract particle attributes relative to the melting path and calculate
@@ -24,15 +25,15 @@ def main(part_id, part_proc_id):
     for timestep in range(*timesteps):
         # Identify particle
         index = np.asarray(
-            (h5f[f'Step#{timestep}']['id'][()] == part_id)
-            & (h5f[f'Step#{timestep}']['proc_id'][()] == part_proc_id)
+            (h5f[f"Step#{timestep}"]["id"][()] == part_id)
+            & (h5f[f"Step#{timestep}"]["proc_id"][()] == part_proc_id)
         ).nonzero()[0][0]
         # Extract values
-        depth.append(domain_dim[1] - h5f[f'Step#{timestep}']['y'][()][index])
-        melt_fraction.append(h5f[f'Step#{timestep}'][f'{attrib}1'][()][index])
-        melt_rate.append(h5f[f'Step#{timestep}'][f'{attrib}3'][()][index])
-        pressure.append(h5f[f'Step#{timestep}'][f'{attrib}4'][()][index])
-        temperature.append(h5f[f'Step#{timestep}'][f'{attrib}5'][()][index])
+        depth.append(domain_dim[1] - h5f[f"Step#{timestep}"]["y"][()][index])
+        melt_fraction.append(h5f[f"Step#{timestep}"][f"{attrib}1"][()][index])
+        melt_rate.append(h5f[f"Step#{timestep}"][f"{attrib}3"][()][index])
+        pressure.append(h5f[f"Step#{timestep}"][f"{attrib}4"][()][index])
+        temperature.append(h5f[f"Step#{timestep}"][f"{attrib}5"][()][index])
 
     # If melting did not occur, return
     if max(melt_rate) == 0:
@@ -55,8 +56,12 @@ def main(part_id, part_proc_id):
     # If non-zero initial melts are allowed, update the dictionary of arrays
     if part_arr["melt_fraction"][0] > 0:
         part_arr = non_zero_initial_melt(
-            part_arr, temperature[-1] - adiab_grad * depth[-1], T_mantle,
-            rho_mantle * g * depth_lab, adiab_grad / rho_mantle / g * 1e9)
+            part_arr,
+            temperature[-1] - adiab_grad * depth[-1],
+            T_mantle,
+            rho_mantle * g * depth_lab,
+            adiab_grad / rho_mantle / g * 1e9,
+        )
 
     # Initialise variables required during integration
     ode_dX = 1e-6
@@ -98,14 +103,15 @@ h5part = "particles.h5part"
 with h5py.File(model_path / h5part, "r") as h5f:
     last_step = tstep_range[1] - 1 if tstep_range else len(h5f.keys()) - 1
     if ONLY_INCLUDE_PARTICLES_THAT_MELT_AT_END:
-        mask = h5f[f"Step#{last_step}"][f'{attrib}3'][()] > 0
+        mask = h5f[f"Step#{last_step}"][f"{attrib}3"][()] > 0
     else:
-        mask = h5f[f"Step#{last_step}"][f'{attrib}2'][()] > 0
+        mask = h5f[f"Step#{last_step}"][f"{attrib}2"][()] > 0
     h5_ids = h5f[f"Step#{last_step}"]["id"][()][mask]
     h5_proc_ids = h5f[f"Step#{last_step}"]["proc_id"][()][mask]
     if __name__ == "__main__":
-        for output in process_map(main, h5_ids, h5_proc_ids,
-                                  max_workers=16, chunksize=1):
+        for output in process_map(
+            main, h5_ids, h5_proc_ids, max_workers=16, chunksize=1
+        ):
             if output is not None:
                 compositions[f"{output[1]}_{output[0]}"] = output[2]
 np.savez(model_path / "RESULTS", compositions=compositions)

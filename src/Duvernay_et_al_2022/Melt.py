@@ -1,296 +1,351 @@
 #!/usr/bin/env python3
-from functools import wraps
-import matplotlib.pyplot as plt
-from numpy import clip, empty, exp, isreal, linspace
-from scipy.integrate import solve_ivp
-from scipy.optimize import root_scalar
+from dataclasses import InitVar, dataclass
 from time import perf_counter
 
+import matplotlib.pyplot as plt
+from numpy import clip, empty_like, exp, isreal, linspace
+from scipy.integrate import solve_ivp
+from scipy.optimize import root_scalar
 
-# Implementation of the hydrous peridote melting parameterisation described in
-# Katz et al. (2003)
-class Katz(object):
-    def __init__(self):  # Parameters included in Katz et al. (2003)
-        self.A1, self.A2, self.A3 = 1374.42637742, 141.38033617, -6.82439927
-        self.B1, self.B2, self.B3 = 1688.67306771, 99.49773072, -4.72456844
-        self.C1, self.C2, self.C3 = 2018.83055, 32.3540649, -0.0467952062
-        # Primitive mantle (eNd = 0)
-        self.D1, self.D2, self.D3 = 0.14623529, 0.02031577, 0.00267938
-        # Equal mix (eNd = 5)
-        # self.D1, self.D2, self.D3 = 0.13517647, 0.02272721, 0.00224305
-        # Depleted mantle (eNd = 10)
-        # self.D1, self.D2, self.D3 = 0.12117647, 0.02489205, 0.00191338
-        self.beta1, self.beta2 = 1.5, 1.2
-        self.D_H2O, self.X_H2O_bulk = 0.01, 0
-        self.gam, self.K = 0.75, 43
-        self.ki1, self.ki2 = 12, 1
-        self.lam = 0.6
-        self.c_P = 1000  # Only for KatzPTF
-        self.alpha_s, self.alpha_f = 4e-5, 6.8e-5  # Only for KatzPTF
-        self.rho_s, self.rho_f = 3300, 2900  # Only for KatzPTF
-        self.deltaS = 300  # Only for KatzPTF
 
-    def updateConst(KatzFunc):  # Decorator to update parameter values
-        @wraps(KatzFunc)
-        def KatzFuncWrapper(*args, **kwargs):
-            if kwargs.get('inputConst'):
-                for key, value in kwargs['inputConst'].items():
-                    args[0].__dict__[key] = value
-                del kwargs['inputConst']
-            return KatzFunc(*args, **kwargs)
-        return KatzFuncWrapper
+@dataclass
+class Katz:
+    """Implementation of the hydrous peridotite melting parameterisation described in
+    Katz et al. (2003)"""
 
-    def calcX_H2O(self, F):  # Equation 18 of Katz et al. (2003)
-        return self.X_H2O_bulk / (self.D_H2O + F * (1 - self.D_H2O))
+    ɛNd: InitVar[int] = None
+    original_params: bool = False
 
-    # Equations 4, 5, 10, 6 + 7 and 9 of Katz et al. (2003)
-    def calcSolLiqCpxOut(self, presGPa):
-        T_sol = self.A1 + self.A2 * presGPa + self.A3 * presGPa ** 2
-        T_liq_lherz = self.B1 + self.B2 * presGPa + self.B3 * presGPa ** 2
-        T_liq = self.C1 + self.C2 * presGPa + self.C3 * presGPa ** 2
-        F_cpx_out = clip(self.D1 + self.D2 * presGPa
-                         + self.D3 * presGPa ** 2, 0, 1)
-        T_cpx_out = (F_cpx_out ** (1 / self.beta1) * (T_liq_lherz - T_sol)
-                     + T_sol)
+    X_H2O_bulk: float = 0.0
+
+    A1: float = 1374.42637742
+    A2: float = 141.38033617
+    A3: float = -6.82439927
+    B1: float = 1688.67306771
+    B2: float = 99.49773072
+    B3: float = -4.72456844
+    C1: float = 2018.83055
+    C2: float = 32.3540649
+    C3: float = -0.0467952062
+    β1: float = 1.5
+    β2: float = 1.2
+    K: float = 43.0
+    γ: float = 0.75
+    D_H2O: float = 0.01
+    χ1: float = 12.0
+    χ2: float = 1.0
+    λ: float = 0.6
+
+    c_P: float = 1000.0
+    α_s: float = 4e-5
+    α_f: float = 6.8e-5
+    ρ_s: float = 3300.0
+    ρ_f: float = 2900.0
+    ΔS: float = 300.0
+
+    def __post_init__(self, ɛNd):
+        if self.original_params:
+            self.A1, self.A2, self.A3 = 1085.7 + 273.15, 132.9, -5.1
+            self.B1, self.B2, self.B3 = 1475.0 + 273.15, 80.0, -3.2
+            self.C1, self.C2, self.C3 = 1780.0 + 273.15, 45.0, -2.0
+            self.M_cpx = 0.17
+            self.r0, self.r1 = 0.5, 0.08
+            self.β2 = 1.5
+        elif ɛNd == 0:  # Primitive mantle
+            self.D1, self.D2, self.D3 = 0.14623529, 0.02031577, 0.00267938
+        elif ɛNd == 5:  # Equal mix
+            self.D1, self.D2, self.D3 = 0.13517647, 0.02272721, 0.00224305
+        elif ɛNd == 10:  # Depleted mantle
+            self.D1, self.D2, self.D3 = 0.12117647, 0.02489205, 0.00191338
+        else:
+            raise RuntimeError(
+                "Either original_params must be set to True or ɛNd must be set to one"
+                " of 0, 5 or 10."
+            )
+
+    def check_water_saturation(
+        self, pressure, temp, F, F_cpx_out, T_cpx_out, T_sol, T_liq_lherz, T_liq
+    ):
+        """Equation 17 of Katz et al. (2003)"""
+        X_H2O_sat = self.χ1 * pressure**self.λ + self.χ2 * pressure
+        if self.water_content(F) > X_H2O_sat:  # Saturated melt
+            if F < F_cpx_out:
+                scaled_temp = (temp - T_sol + self.K * X_H2O_sat**self.γ) / (
+                    T_liq_lherz - T_sol
+                )
+                if scaled_temp <= 0:  # T' must be positive for F to be real
+                    return 0
+                return scaled_temp**self.β1
+            else:
+                scaled_temp = (temp - T_cpx_out + self.K * X_H2O_sat**self.γ) / (
+                    T_liq - T_cpx_out
+                )
+                if scaled_temp <= 0:  # T' must be positive for F to be real
+                    return 0
+                return F_cpx_out + (1 - F_cpx_out) * scaled_temp**self.β2
+        return F
+
+    def param_vars(self, pressure):
+        """Equations 4, 5, 10, 6 + 7 and 9 of Katz et al. (2003)"""
+        T_sol = self.A1 + self.A2 * pressure + self.A3 * pressure**2
+        T_liq_lherz = self.B1 + self.B2 * pressure + self.B3 * pressure**2
+        T_liq = self.C1 + self.C2 * pressure + self.C3 * pressure**2
+        if self.original_params:
+            F_cpx_out = self.M_cpx / (self.r0 + self.r1 * pressure)
+        else:
+            F_cpx_out = clip(
+                self.D1 + self.D2 * pressure + self.D3 * pressure**2, 0, 1
+            )
+        T_cpx_out = F_cpx_out ** (1 / self.β1) * (T_liq_lherz - T_sol) + T_sol
         return T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out
 
-    # Equation 17 of Katz et al. (2003)
-    def checkWaterSat(self, presGPa, temp, F, T_sol, T_liq_lherz):
-        X_H2O_sat = self.ki1 * presGPa ** self.lam + self.ki2 * presGPa
-        if self.calcX_H2O(F) > X_H2O_sat:  # Saturation
-            # Equations 2 and 3 of Katz et al. (2003), including the
-            # temperature correction described in their Section 2.2
-            tempPrime = ((temp - T_sol + self.K * X_H2O_sat ** self.gam)
-                         / (T_liq_lherz - T_sol))
-            F = tempPrime ** self.beta1 if tempPrime > 0 else 0
-        return F
+    def water_content(self, F):
+        """Equation 18 of Katz et al. (2003)"""
+        return self.X_H2O_bulk / (self.D_H2O + F * (1 - self.D_H2O))
 
-    # Calculate melt fraction using Section 2 of Katz et al. (2003)
-    @updateConst
-    def KatzPT(self, presGPa, temp):
-        # Equation 3 of Katz et al. (2003), including the temperature
-        # correction described in their Section 2.2; cpx present
-        def checkCpx(F):
-            return ((temp - T_sol + self.K * self.calcX_H2O(F) ** self.gam)
-                    / (T_liq_lherz - T_sol))
+    def KatzPT(self, pressure, temp):
+        """Calculate melt fraction using Section 2 of Katz et al. (2003)"""
 
-        # Equivalent of T' within Equation 8 of Katz et al. (2003), including
-        # the temperature correction described in their Section 2.2; cpx
-        # exhausted
-        def checkOpx(F):
-            return ((temp - T_cpx_out + self.K * self.calcX_H2O(F) ** self.gam)
-                    / (T_liq - T_cpx_out))
+        def root_bracket(accuracy):
+            """Determine bracket of values within which the melt fraction lies"""
+            F = 0
+            for i in range(accuracy):  # Progressively decrease the increment
+                increment = 10 ** -(i + 1)
 
-        # Determine bracket of values within which the melt fraction lies
-        def detBracket(start, stop, nbIncrmt, funcCheck, func):
-            F = start
-            for i in range(nbIncrmt):  # Progressively decrease the increment
-                incrmt = 10 ** -(i + 1)  # Increment for F
-                funcCheckStart = funcCheck(start)  # Calculate initial T'
-                if funcCheckStart <= 0:  # T' must be positive for F to be real
-                    return None
-                # Initial value for root finding
-                funcStart = func(start, funcCheckStart)
-                while F < stop:
-                    funcCheckF = funcCheck(F)  # Calculate T'
-                    if funcCheckF >= 0:
-                        # Current value for root finding
-                        funcF = func(F, funcCheckF)
-                        if isreal(funcF):
-                            if funcF * funcStart < 0:  # Change of sign
-                                return [F - incrmt, F]
-                            else:  # No change of sign, increment F
-                                F += incrmt
-                        else:  # F is complex, break to decrease increment
-                            break
-                    else:  # T' must be positive for F to be real
+                root_function = root_cpx if F < F_cpx_out else root_opx
+                reference_residual = root_function(F)
+                if reference_residual is None:
+                    return
+
+                while F < 1:
+                    F = round(F + increment, i + 1)
+                    root_function = root_cpx if F < F_cpx_out else root_opx
+                    residual = root_function(F)
+                    if residual is None:
                         break
-                F -= incrmt
-            return [F, F + incrmt]
+                    elif isreal(residual):
+                        if residual * reference_residual <= 0:  # Change of sign
+                            if F - increment < F_cpx_out <= F:
+                                cpx_out_residual = root_cpx(F_cpx_out)
+                                if residual * cpx_out_residual <= 0:
+                                    return [F_cpx_out, F]
+                                else:
+                                    return [F - increment, F_cpx_out]
+                            else:
+                                return [F - increment, F]
+                        elif F == 1:
+                            return F
+                    else:  # Break to decrease increment
+                        break
+                F -= increment
 
-        # Equation 2 of Katz et al. (2003) in the context of root finding
-        def funcCpx(F, *args):
-            checkCpxF = args[0] if args else checkCpx(F)
-            return F - checkCpxF ** self.beta1
+        def root_cpx(F):
+            """Equations 2 and 3 of Katz et al. (2003) in the context of root finding"""
+            scaled_temp = (temp - T_sol + self.K * self.water_content(F) ** self.γ) / (
+                T_liq_lherz - T_sol
+            )
+            if scaled_temp <= 0:  # T' must be positive for F to be real
+                return
+            return scaled_temp**self.β1 - F
 
-        # Equation 8 of Katz et al. (2003) in the context of root finding
-        def funcOpx(F, *args):
-            checkOpxF = args[0] if args else checkOpx(F)
-            return F - F_cpx_out - (1 - F_cpx_out) * checkOpxF ** self.beta2
+        def root_opx(F):
+            """Equations 8 and 9 of Katz et al. (2003) in the context of root finding"""
+            scaled_temp = (
+                temp - T_cpx_out + self.K * self.water_content(F) ** self.γ
+            ) / (T_liq - T_cpx_out)
+            if scaled_temp <= 0:  # T' must be positive for F to be real
+                return
+            return F_cpx_out + (1 - F_cpx_out) * scaled_temp**self.β2 - F
 
-        if presGPa > 8:  # Assume parameterisation does not apply
+        if pressure > 8:  # Assume parameterisation does not apply
             return 0
-        (T_sol, T_liq_lherz, T_liq,
-         F_cpx_out, T_cpx_out) = self.calcSolLiqCpxOut(presGPa)
-        # Determine accurate bracket of melt fraction values within which the
-        # sought melt fraction lies
-        bracket = detBracket(0, F_cpx_out, 9, checkCpx, funcCpx)
-        if bracket is None:  # Complex value, return 0
-            return 0
-        elif bracket[1] < F_cpx_out:  # cpx present
-            F = root_scalar(funcCpx, method='brentq', bracket=bracket).root
-            if F > 0:  # Check water saturation
-                F = self.checkWaterSat(presGPa, temp, F, T_sol, T_liq_lherz)
-        else:  # cpx exhausted
-            bracket = detBracket(F_cpx_out, 1, 9, checkOpx, funcOpx)
-            if bracket[1] >= 1:  # Limit melt fraction to 1
-                return 1
-            F = root_scalar(funcOpx, method='brentq', bracket=bracket).root
-        assert 0 <= F < 1
-        return F
+        T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out = self.param_vars(pressure)
 
-    # Calculate melt fraction using Section 6 of Katz et al. (2003), modified
-    # such that the temperature gradient along the melting path is supplied as
-    # an input variable
-    @updateConst
-    def KatzPTF(self, presGPaStart, presGPaEnd, tempStart, Fstart, dTdP_GPa):
+        bracket = root_bracket(15)  # Accurate bracketing of the melt fraction root
+        if bracket is None:  # Complex value, assume below solidus
+            return 0
+        elif isinstance(bracket, float):  # F is equal to 1
+            return bracket
+        else:
+            F = root_scalar(
+                root_cpx if bracket[1] < F_cpx_out else root_opx,
+                method="brentq",
+                bracket=bracket,
+            ).root
+            F = 1 if F > 1 else F
+            F = self.check_water_saturation(
+                pressure, temp, F, F_cpx_out, T_cpx_out, T_sol, T_liq_lherz, T_liq
+            )
+            assert 0 <= F <= 1
+            return F
+
+    def KatzPTF(self, pressureStart, pressureEnd, tempStart, Fstart, dTdP_GPa):
+        """Calculate melt fraction using Section 6 of Katz et al. (2003); the
+        temperature gradient along the melting path is supplied as an input variable"""
+
         def deriv(t, y):
-            presGPa = t
+            pressure = t
             temp, F = y
-            (T_sol, T_liq_lherz, T_liq,
-             F_cpx_out, T_cpx_out) = self.calcSolLiqCpxOut(presGPa)
+            T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out = self.param_vars(pressure)
             if F <= 0:  # Update F in case solidus has been crossed
-                F = self.KatzPT(presGPa, temp)
-            elif F < F_cpx_out:  # Check water saturation
-                F = self.checkWaterSat(presGPa, temp, F, T_sol, T_liq_lherz)
+                F = self.KatzPT(pressure, temp)
+            else:  # Check water saturation
+                F = self.check_water_saturation(
+                    pressure, temp, F, F_cpx_out, T_cpx_out, T_sol, T_liq_lherz, T_liq
+                )
             if F == 0:  # Below solidus
                 return dTdP_GPa, 0
             # Derivatives with respect to pressure
-            dT_sol = self.A2 + 2 * self.A3 * presGPa
-            dT_liq_lherz = self.B2 + 2 * self.B3 * presGPa
-            dT_liq = self.C2 + 2 * self.C3 * presGPa
-            dF_cpx_out = self.D2 + 2 * self.D3 * presGPa
+            dT_sol = self.A2 + 2 * self.A3 * pressure
+            dT_liq_lherz = self.B2 + 2 * self.B3 * pressure
+            dT_liq = self.C2 + 2 * self.C3 * pressure
+            if self.original_params:
+                dF_cpx_out = -(F_cpx_out**2) * self.r1 / self.M_cpx
+            else:
+                dF_cpx_out = self.D2 + 2 * self.D3 * pressure
             # Derivative correction accounting for the presence of water
-            dH2O = (self.gam * self.K * self.X_H2O_bulk ** self.gam
-                    * (1 - self.D_H2O)
-                    / (self.D_H2O + F * (1 - self.D_H2O)) ** (self.gam + 1))
+            dH2O = (
+                self.γ
+                * self.K
+                * self.X_H2O_bulk**self.γ
+                * (1 - self.D_H2O)
+                / (self.D_H2O + F * (1 - self.D_H2O)) ** (self.γ + 1)
+            )
             if F < F_cpx_out:  # cpx present
                 # Equation 22 (corrected) of Katz et al. (2003)
-                dTdP_F = (F ** (1 / self.beta1) * (dT_liq_lherz - dT_sol)
-                          + dT_sol)
+                dTdP_F = F ** (1 / self.β1) * (dT_liq_lherz - dT_sol) + dT_sol
                 # Equation 21 (corrected) of Katz et al. (2003)
-                dTdF_P = (F ** ((1 - self.beta1) / self.beta1)
-                          * (T_liq_lherz - T_sol) / self.beta1 + dH2O)
+                dTdF_P = (
+                    F ** ((1 - self.β1) / self.β1) * (T_liq_lherz - T_sol) / self.β1
+                    + dH2O
+                )
             else:  # cpx exhausted
-                # Break the derivative of temperature with respect to pressure
-                # into multiple terms
-                A = ((F - F_cpx_out) / (1 - F_cpx_out)) ** (1 / self.beta2)
+                # Break the pressure derivative of temperature into multiple terms
+                A = ((F - F_cpx_out) / (1 - F_cpx_out)) ** (1 / self.β2)
                 B = T_liq - T_cpx_out
-                dAdP_F = (-dF_cpx_out / self.beta2
-                          * (F - F_cpx_out) ** (1 / self.beta2)
-                          * (1 / (F - F_cpx_out) - 1 / (1 - F_cpx_out))
-                          / (1 - F_cpx_out) ** (1 / self.beta2))
-                dCdP_F = (F_cpx_out ** ((1 - self.beta1) / self.beta1)
-                          * dF_cpx_out / self.beta1
-                          * (T_liq_lherz - T_sol)
-                          + F_cpx_out ** (1 / self.beta1)
-                          * (dT_liq_lherz - dT_sol) + dT_sol)
+                dAdP_F = (
+                    -dF_cpx_out
+                    / self.β2
+                    * (F - F_cpx_out) ** (1 / self.β2)
+                    * (1 / (F - F_cpx_out) - 1 / (1 - F_cpx_out))
+                    / (1 - F_cpx_out) ** (1 / self.β2)
+                )
+                dCdP_F = (
+                    F_cpx_out ** ((1 - self.β1) / self.β1)
+                    * dF_cpx_out
+                    / self.β1
+                    * (T_liq_lherz - T_sol)
+                    + F_cpx_out ** (1 / self.β1) * (dT_liq_lherz - dT_sol)
+                    + dT_sol
+                )
                 dBdP_F = dT_liq - dCdP_F
                 # Equivalent of Equation 22 of Katz et al. (2003)
                 dTdP_F = dAdP_F * B + A * dBdP_F + dCdP_F
                 # Equivalent of Equation 21 of Katz et al. (2003)
-                dTdF_P = ((F - F_cpx_out) ** ((1 - self.beta2) / self.beta2)
-                          / self.beta2 * (T_liq - T_cpx_out)
-                          / (1 - F_cpx_out) ** (1 / self.beta2) + dH2O)
+                dTdF_P = (F - F_cpx_out) ** ((1 - self.β2) / self.β2) / self.β2 * (
+                    T_liq - T_cpx_out
+                ) / (1 - F_cpx_out) ** (1 / self.β2) + dH2O
             # Equation 20 (modified) of Katz et al. (2003)
-            dFdP_S = ((dTdP_GPa - dTdP_F)
-                      / (temp * self.deltaS / self.c_P + dTdF_P))
+            dFdP_S = (dTdP_GPa - dTdP_F) / (temp * self.ΔS / self.c_P + dTdF_P)
             # Equation 23 (modified) of Katz et al. (2003)
-            dTdP_S = dTdP_GPa - self.deltaS * dFdP_S * temp / self.c_P
+            dTdP_S = dTdP_GPa - self.ΔS * dFdP_S * temp / self.c_P
             return dTdP_S, dFdP_S
 
         # Integrate the coupled system of ordinary differential equations
-        sol = solve_ivp(deriv, [presGPaStart, presGPaEnd], [tempStart, Fstart],
-                        method='LSODA', dense_output=True,
-                        atol=1e-5, rtol=1e-4)
+        sol = solve_ivp(
+            deriv,
+            [pressureStart, pressureEnd],
+            [tempStart, Fstart],
+            method="LSODA",
+            dense_output=True,
+            atol=1e-5,
+            rtol=1e-4,
+        )
         return sol.sol
 
 
-# Use existing methods within the below class to produce figures comparable to
-# those presented in Katz et al. (2003) and, thereby, assert that the
-# implementation of the parameterisation yields correct results
-class KatzFigures(object):
-    @staticmethod
-    def Figure2():
-        temp = linspace(1000, 2000, 1001) + 273.15
-        F = empty(temp.shape)
-        katz = Katz()
-        for pres in [0, 1, 2, 3]:
-            begin = perf_counter()
-            for i, T in enumerate(temp):
-                F[i] = katz.KatzPT(pres, T)
-            print(perf_counter() - begin)
-            plt.plot(temp - 273.15, F, label=f'{pres} GPa')
-        plt.legend(loc='upper left')
-        plt.grid()
-        plt.gca().set_xlim(temp[0] - 273.15, temp[-1] - 273.15)
-        plt.gca().set_ylim(0, 1)
-        plt.tight_layout()
-        plt.show()
+def figure_2(original_params):
+    temperatures = linspace(1000, 2000, 1001) + 273.15
+    F = empty_like(temperatures)
+    katz = Katz(original_params=original_params)
+    for pressure in [0, 1, 2, 3]:
+        begin = perf_counter()
+        for i, temperature in enumerate(temperatures):
+            F[i] = katz.KatzPT(pressure, temperature)
+        print(perf_counter() - begin)
+        plt.plot(temperatures - 273.15, F, label=f"{pressure} GPa")
+    plt.legend(loc="upper left")
+    plt.grid()
+    plt.gca().set_xlim(temperatures[0] - 273.15, temperatures[-1] - 273.15)
+    plt.gca().set_ylim(0, 1)
+    plt.tight_layout()
+    plt.show()
 
-    @staticmethod
-    def Figure3():
-        pres = linspace(8, 0, 401)
-        temp = empty(pres.shape)
-        katz = Katz()
-        for water in [0, 0.05, 0.1, 0.3, 0.5]:
-            begin = perf_counter()
-            for i, P in enumerate(pres):
-                T = 900 + 273.15
-                while katz.KatzPT(P, T, inputConst={'X_H2O_bulk': water}) == 0:
-                    T += 0.5
-                temp[i] = T - 0.25
-            print(perf_counter() - begin)
-            plt.plot(temp - 273.15, pres, label=f'{water} bulk wt%')
-        plt.legend(loc='upper right')
-        plt.grid()
-        plt.gca().set_xlim(1000 - 1.2 / 1.8 * 200, 1800 + 1.1 / 1.8 * 200)
-        plt.gca().set_ylim(pres[0], pres[-1])
-        plt.tight_layout()
-        plt.show()
 
-    @staticmethod
-    def Figure4():
-        temp = linspace(900, 1400, 501) + 273.15
-        F = empty(temp.shape)
-        katz = Katz()
-        for water in [0, 0.02, 0.05, 0.1, 0.3]:
-            begin = perf_counter()
-            for i, T in enumerate(temp):
-                F[i] = katz.KatzPT(1, T, inputConst={'X_H2O_bulk': water})
-            print(perf_counter() - begin)
-            plt.plot(temp - 273.15, F, label=f'{water} bulk wt%')
-        plt.legend(loc='upper left')
-        plt.grid()
-        plt.gca().set_xlim(temp[0] - 273.15, temp[-1] - 273.15)
-        plt.gca().set_ylim(0, 0.4)
-        plt.tight_layout()
-        plt.show()
+def figure_3(original_params):
+    pressures = linspace(8, 0, 401)
+    temperatures = empty_like(pressures)
+    katz = Katz(original_params=original_params)
+    for water in [0, 0.05, 0.1, 0.3, 0.5]:
+        begin = perf_counter()
+        katz.X_H2O_bulk = water
+        for i, pressure in enumerate(pressures):
+            temperature = 900 + 273.15
+            while katz.KatzPT(pressure, temperature) == 0:
+                temperature += 0.5
+            temperatures[i] = temperature - 0.25
+        print(perf_counter() - begin)
+        plt.plot(temperatures - 273.15, pressures, label=f"{water} bulk wt%")
+    plt.legend(loc="upper right")
+    plt.grid()
+    plt.gca().set_xlim(1000 - 1.2 / 1.8 * 200, 1800 + 1.1 / 1.8 * 200)
+    plt.gca().set_ylim(pressures[0], pressures[-1])
+    plt.tight_layout()
+    plt.show()
 
-    @staticmethod
-    def Figure11():
-        fig, (ax, bx) = plt.subplots(nrows=1, ncols=2, sharey=True)
-        presGPa = linspace(0, 6, 1001)
-        katz = Katz()
-        for poTemp, colour in zip([1250, 1350, 1450],
-                                  ['tab:blue', 'tab:green', 'tab:orange']):
-            temp = (poTemp + 273.15) * exp(katz.alpha_s * 6e9
-                                           / katz.c_P / katz.rho_s)
-            for water in linspace(0, 0.02, 4):
-                begin = perf_counter()
-                sol = katz.KatzPTF(6, 0, temp, 0, katz.alpha_s * temp
-                                   / katz.rho_s / katz.c_P * 1e9,
-                                   inputConst={'X_H2O_bulk': water,
-                                               'M_cpx': 0.1})
-                print(perf_counter() - begin)
-                ax.plot(sol(presGPa)[1, :], presGPa, color=colour)
-                bx.plot(sol(presGPa)[0, :] - 273.15, presGPa, color=colour)
-        ax.set_ylim((0, 6))
-        ax.set_xlim((0, 0.26))
-        bx.set_xlim((1180, 1580))
-        ax.invert_yaxis()
-        for axis in [ax, bx]:
-            axis.grid()
-            axis.xaxis.tick_top()
-        plt.tight_layout()
-        plt.show()
+
+def figure_4(original_params):
+    temperatures = linspace(900, 1400, 501) + 273.15
+    F = empty_like(temperatures)
+    katz = Katz(original_params=original_params)
+    for water in [0, 0.02, 0.05, 0.1, 0.3]:
+        begin = perf_counter()
+        katz.X_H2O_bulk = water
+        for i, temperature in enumerate(temperatures):
+            F[i] = katz.KatzPT(1, temperature)
+        print(perf_counter() - begin)
+        plt.plot(temperatures - 273.15, F, label=f"{water} bulk wt%")
+    plt.legend(loc="upper left")
+    plt.grid()
+    plt.gca().set_xlim(temperatures[0] - 273.15, temperatures[-1] - 273.15)
+    plt.gca().set_ylim(0, 0.4)
+    plt.tight_layout()
+    plt.show()
+
+
+def figure_11(original_params):
+    fig, (ax, bx) = plt.subplots(nrows=1, ncols=2, sharey=True)
+    pressures = linspace(0, 6, 1001)
+    katz = Katz(original_params=original_params)
+    katz.M_cpx = 0.1
+    for potential_temp, colour in zip(
+        [1250, 1350, 1450], ["tab:blue", "tab:green", "tab:orange"]
+    ):
+        temp = (potential_temp + 273.15) * exp(katz.α_s * 6e9 / katz.c_P / katz.ρ_s)
+        dTdP_GPa = katz.α_s * temp / katz.ρ_s / katz.c_P * 1e9
+        for water in linspace(0, 0.02, 4):
+            begin = perf_counter()
+            katz.X_H2O_bulk = water
+            sol = katz.KatzPTF(6, 0, temp, 0, dTdP_GPa)
+            print(perf_counter() - begin)
+            ax.plot(sol(pressures)[1, :], pressures, color=colour)
+            bx.plot(sol(pressures)[0, :] - 273.15, pressures, color=colour)
+    ax.set_ylim((0, 6))
+    ax.set_xlim((0, 0.26))
+    bx.set_xlim((1180, 1580))
+    ax.invert_yaxis()
+    for axis in [ax, bx]:
+        axis.grid()
+        axis.xaxis.tick_top()
+    plt.tight_layout()
+    plt.show()
