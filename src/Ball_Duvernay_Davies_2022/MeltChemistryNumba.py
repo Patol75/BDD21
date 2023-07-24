@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
+import numpy as np
+from constants import const, radio
 from numba import njit
 from numba.pycc import CC
-import numpy as np
-from scipy.constants import Avogadro, pi, R
-
-from constants import const, radio
-
+from scipy.constants import Avogadro, R, pi
 
 cc = CC("MeltChemistryCompiled")
 cc.target_cpu = "host"
@@ -20,8 +18,19 @@ cc.verbose = True
     "DictType(unicode_type, f8[:]), f8, f8)",
 )
 def mineralogy(
-    X, X_0, Fn_0_spl, Fn_0_gnt, ele_ind, D, ri, val,
-    mnrl_mode_coeff, eNd, part_arr, X_spl_in, X_gnt_out,
+    X,
+    X_0,
+    Fn_0_spl,
+    Fn_0_gnt,
+    ele_ind,
+    D,
+    ri,
+    val,
+    mnrl_mode_coeff,
+    eNd,
+    part_arr,
+    X_spl_in,
+    X_gnt_out,
 ):
     """Determine modal mineral abundances, reaction coefficients and partition
     coefficients."""
@@ -42,9 +51,7 @@ def mineralogy(
         pn = np.zeros(6)
 
     # Partition coefficients between all elements and mineral phases considered
-    Dn = partition_coefficient(
-        P, T, X, ele_ind, D, ri, val, X_spl_in, X_gnt_out
-    )
+    Dn = partition_coefficient(P, T, X, ele_ind, D, ri, val, X_spl_in, X_gnt_out)
 
     return Fn, pn, Dn
 
@@ -79,9 +86,7 @@ def solid_composition(X, P, mnrl_mode_coeff, eNd):
 
     # Modal abundances of parameterised minerals
     for mnrl, coeff in mnrl_mode_coeff.items():
-        modal_ab[mnrl] = (
-            np.ascontiguousarray(coeff) @ pres_poly_var @ melt_poly_var
-        )
+        modal_ab[mnrl] = np.ascontiguousarray(coeff) @ pres_poly_var @ melt_poly_var
     Fn_spl[0], Fn_gnt[0] = modal_ab["ol_spl"], modal_ab["ol_gnt"]
     Fn_spl[2], Fn_gnt[2] = modal_ab["cpx"], modal_ab["cpx"]
     Fn_spl[4], Fn_gnt[5] = modal_ab["spl"], modal_ab["gnt"]
@@ -252,12 +257,7 @@ def partition_coefficient(P, T, X, ele_ind, D, ri, val, X_spl_in, X_gnt_out):
     # # # # # # # # #
     # Clinopyroxene #
     # # # # # # # # #
-    if (
-        mask_11.any()
-        or mask_21.any()
-        or mask_31_const.any()
-        or mask_41_radio.any()
-    ):
+    if mask_11.any() or mask_21.any() or mask_31_const.any() or mask_41_radio.any():
         # Atomic fraction of Mg atoms on the M1 site per six-oxygen
         X_Mg_M1 = al_phase_select(
             X, X_spl_in, X_gnt_out, 0.425 * X + 0.741, 0.191 * X + 0.793
@@ -407,17 +407,15 @@ def partition_coefficient(P, T, X, ele_ind, D, ri, val, X_spl_in, X_gnt_out):
         X_Ca = -0.247 * X + 0.355
 
         # Equations A4a-c of Sun and Liang - Chemical Geology (2014)
-        D0 = np.exp(
-            -2.01 + (9.03e4 - 93.02 * P * (37.78 - P)) / R / T - 1.04 * X_Ca
-        )
+        D0 = np.exp(-2.01 + (9.03e4 - 93.02 * P * (37.78 - P)) / R / T - 1.04 * X_Ca)
         r0 = 0.785 + 0.153 * X_Ca
         E = (-1.67 + 2.35 * r0) * 1e3
 
         if mask_21.any():
             # Section 3.11.10.3.3 of Wood and Blundy - Treatise on Geo. (2014)
-            D_Mg = np.exp(
-                (258_210 - 141.5 * T + 5418 * P) / 3 / R / T
-            ) / np.exp(1.9e4 * X_Ca**2 / R / T)
+            D_Mg = np.exp((258_210 - 141.5 * T + 5418 * P) / 3 / R / T) / np.exp(
+                1.9e4 * X_Ca**2 / R / T
+            )
             r_Mg = 0.89e-10
             r0_v2, E_v2 = 0.053 + r0, 2 / 3 * E
             Dn[mask_21, 5] = part_coeff_same_charge(

@@ -6,8 +6,6 @@ from time import perf_counter
 
 # import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import root
-
 from ridge_data import (  # prim_mantle_comp,; bulk_part_coeff,
     elements_ext_ree,
     grid_chem_integ_xy,
@@ -17,6 +15,7 @@ from ridge_data import (  # prim_mantle_comp,; bulk_part_coeff,
     part_coeff,
     part_coeff_mg,
 )
+from scipy.optimize import root
 
 
 def magma_chamber_dynamics(

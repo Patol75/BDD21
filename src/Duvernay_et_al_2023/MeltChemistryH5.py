@@ -3,15 +3,21 @@ from pathlib import Path
 
 import h5py
 import numpy as np
+from constants import (
+    T_mantle,
+    adiab_grad,
+    attrib,
+    cs_0,
+    depth_lab,
+    domain_dim,
+    rho_mantle,
+)
+from MeltChemistryFunctions import non_zero_initial_melt, run_integrator
 from numba import float64
 from numba.typed import Dict
 from numba.types import unicode_type
 from scipy.constants import g
 from tqdm.contrib.concurrent import process_map
-
-from constants import (T_mantle, adiab_grad, attrib, cs_0, depth_lab, domain_dim,
-                       rho_mantle)
-from MeltChemistryFunctions import non_zero_initial_melt, run_integrator
 
 
 # Extract particle attributes relative to the melting path and calculate

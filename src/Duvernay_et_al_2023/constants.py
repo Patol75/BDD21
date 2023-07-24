@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
+from ChemistryData import DM_SS_2004, PM_MS_1995
 from numba.typed import Dict
 from numba.types import int64, unicode_type
-from numpy import asarray, isfinite
+from numpy import asarray
 from scipy.constants import g
-
-from ChemistryData import DM_SS_2004, PM_MS_1995
 
 domain_dim = (1.98e6, 6.6e5)
 T_surface, T_mantle = 273.15, 1623.15

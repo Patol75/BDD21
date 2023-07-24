@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-import numpy as np
-from numba import float64
-from numba.typed import Dict
-from numba.types import unicode_type
-from scipy.integrate import cumulative_trapezoid
-
 import constants as cst
+import numpy as np
 from ChemistryData import mnrl_mode_coeff
 from Melt import Katz
 from MeltChemistryCompiled import solid_composition
 from MeltChemistryFunctions import run_integrator
+from numba import float64
+from numba.typed import Dict
+from numba.types import unicode_type
+from scipy.integrate import cumulative_trapezoid
 
 # Initialise pressure and temperature
 presGPa = np.linspace(4, 0, 4001)

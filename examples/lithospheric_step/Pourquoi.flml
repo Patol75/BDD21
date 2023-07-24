@@ -121,7 +121,7 @@
                     *mask_ode, ode_dX, X_spl_in, X_gnt_out,
                     part_arr["melt_fraction"][-2], part_arr["pressure"][-2],
                     *Fn, *pn, *cs, *cl)
- 
+
         return (F, F, 0, presGPa, temp, 0,
                 *mask_ode, 1e-6, 1 if depth &gt; spl_in else 0,
                 1 if depth &gt; gnt_out else 0, F, presGPa,
@@ -1302,7 +1302,7 @@ for i in range(field.node_count):
           <python>
             <string_value type="code" language="python" lines="20">def val(X, t):
     from numpy import identity
-    
+
     if (((X[0] &gt; 1e6 and X[0] &lt; 1.2e6) or (X[0] &gt; 2.8e6 and X[0] &lt; 3e6))
         and (X[1] &gt; 9e5 and X[1] &lt; 9.5e5)):
         return 5e3 * identity(2)

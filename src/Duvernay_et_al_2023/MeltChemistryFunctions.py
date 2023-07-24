@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
+from ChemistryData import mnrl_mode_coeff, part_coeff, radii, valence
+from Melt import Katz
 from MeltChemistryCompiled import mineralogy, solid_composition
 from numpy import asarray, diff, empty_like, linspace, ones_like, pad, zeros
 from scipy.integrate import LSODA
-
-from ChemistryData import mnrl_mode_coeff, part_coeff, radii, valence
-from Melt import Katz
 
 
 # Calculate mineralogy and chemistry given a melting path
