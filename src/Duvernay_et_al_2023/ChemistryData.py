@@ -317,6 +317,20 @@ GB_YS_2007 = {
 }
 # fmt: on
 
+# Jordan, Pilet and Brenna - Journal of Petrology (2022)
+# fmt: off
+PX_JP_2022 = {
+    "La": 1.17, "Ce": 3.88, "Pr": nan, "Nd": 4.08, "Sm": 1.60,
+    "Eu": 0.62, "Gd": 2.26, "Tb": nan, "Dy": 2.91, "Ho": nan,
+    "Er": 1.81, "Tm": nan, "Yb": 1.75, "Lu": 0.26, "Hf": 1.14,
+    "Rb": 0.33, "Sr": 45.52, "Th": 0.09, "U": 0.03, "Pb": 0.05,
+    "Nb": 1.72, "Ti": 4590, "Zr": 46.19, "Y": 17.57, "Ta": 0.12,
+    "Li": nan, "Sc": nan, "V": nan, "Cr": nan, "Ni": nan,
+    "Na": nan, "K": nan, "Mn": nan, "P": nan, "Co": nan,
+    "Ba": 4.71, "Ga": nan, "Cu": nan, "Zn": nan, "Cs": nan
+}
+# fmt: on
+
 # Duvernay et al. - ??? (2023)
 mnrl_mode_coeff = Dict.empty(key_type=unicode_type, value_type=float64[:])
 mnrl_mode_coeff["ol"] = array(

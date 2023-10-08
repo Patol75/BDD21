@@ -81,6 +81,26 @@ def magma_chamber_fractionation(frac_tapp, frac_cryst, model, bulk_part_coeff, *
                     ** bulk_part_coeff[1]
                 )
             )
+        case "rxtmx":
+            prop_cryst_repl = args[0]
+
+            frac_cryst_1 = prop_cryst_repl * frac_cryst
+            frac_cryst_2 = (1 - prop_cryst_repl) * frac_cryst
+
+            return (
+                (frac_cryst + frac_tapp)
+                * (1 - frac_cryst_1 / (frac_cryst + frac_tapp)) ** bulk_part_coeff[0]
+                * (1 - frac_cryst_2 / (1 - frac_cryst_1 - frac_tapp))
+                ** (bulk_part_coeff[1] - 1)
+                / (
+                    1
+                    - frac_cryst_1
+                    - frac_tapp
+                    - (1 - frac_cryst_1 - frac_cryst_2 - 2 * frac_tapp)
+                    * (1 - frac_cryst_2 / (1 - frac_cryst_1 - frac_tapp))
+                    ** (bulk_part_coeff[1] - 1)
+                )
+            )
         case "rxmtx_mci":
             prop_cryst_repl = args[0]
             cryst_tapp_frac_1 = args[1]
@@ -158,10 +178,12 @@ def main(parameters):
         min_lim_slope,
     ) = parameters
 
-    if prop_troctolite == 0 and mode_ol_troctolite > 0 and mode_cpx_troctolite > 0:
+    if prop_troctolite == 0 and (
+        abs(mode_ol_troctolite - 0.25) > 1e-3 or abs(mode_cpx_troctolite - 0.0) > 1e-3
+    ):
         return 1
 
-    simu = "d9_wh_gabbro"
+    simu = "d10_ss"
     model = "rxmtx_mci"
     part_coeff_key = "white_2014"
     part_coeff_mg_key = "laubier_2014"
@@ -179,14 +201,34 @@ def main(parameters):
     bulk_part_coeff_run = {}
     # bulk_part_coeff_run = bulk_part_coeff["o_neill_2012"]
 
-    simu_key = "_".join(split("_", simu)[:2])
-    elements = [
-        ele
-        for ele in elements_ext_ree
-        if ele in part_coeff_run.keys() and ele not in missing_elements[simu_key[-2:]]
-        # if ele in bulk_part_coeff_run.keys()
-        # and ele not in missing_elements[simu_key[-2:]]
-    ]
+    if "gabbro" in simu:
+        elements = [
+            ele
+            for ele in elements_ext_ree
+            if ele in part_coeff_run.keys() and ele not in missing_elements["gabbro"]
+            # if ele in bulk_part_coeff_run.keys()
+            # and ele not in missing_elements["gabbro"]
+        ]
+    elif "pyroxenite" in simu:
+        elements = [
+            ele
+            for ele in elements_ext_ree
+            if ele in part_coeff_run.keys()
+            and ele not in missing_elements["pyroxenite"]
+            # if ele in bulk_part_coeff_run.keys()
+            # and ele not in missing_elements["pyroxenite"]
+        ]
+    else:
+        simu_key = "_".join(split("_", simu)[:2])
+        elements = [
+            ele
+            for ele in elements_ext_ree
+            if ele in part_coeff_run.keys()
+            and ele not in missing_elements[simu_key[-2:]]
+            # if ele in bulk_part_coeff_run.keys()
+            # and ele not in missing_elements[simu_key[-2:]]
+        ]
+    elements.remove("Sr")
 
     ele_conc_tapp = np.empty(len(elements))
     ele_conc_gale = np.empty(len(elements))
@@ -351,30 +393,27 @@ def main(parameters):
     if not np.isfinite(frac_tapp) or not np.isfinite(frac_cryst):
         return 1
 
-    # if frac_tapp + frac_cryst < 1.1:
-    #     assert frac_tapp + frac_cryst <= 1, (frac_tapp, frac_cryst, parameters)
-
     if frac_tapp + frac_cryst < 0.01 or frac_tapp + frac_cryst > 0.9:
         return 1
 
     layer_2_3_ratio = frac_cryst / frac_tapp
-    if layer_2_3_ratio < 2:
+    if layer_2_3_ratio < 2.3:
         return 1
 
     upd_troctolite_modes = troctolite_modes * (1 - prop_mnrl_tapp_1)
     upd_troctolite_modes /= upd_troctolite_modes.sum()
-    if upd_troctolite_modes[0] < 0.2 or upd_troctolite_modes[1] > 0.1:
+    if upd_troctolite_modes[0] < 0.249 or upd_troctolite_modes[1] > 0.101:
         return 1
 
     upd_gabbro_modes = gabbro_modes * (1 - prop_mnrl_melt_2)
     upd_gabbro_modes /= upd_gabbro_modes.sum()
-    if upd_gabbro_modes[0] > 0.25 or upd_gabbro_modes[2] < upd_gabbro_modes[1]:
+    if upd_gabbro_modes[0] > 0.151 or upd_gabbro_modes[2] < upd_gabbro_modes[1]:
         return 1
 
     layer_3_modes = upd_troctolite_modes * prop_troctolite + upd_gabbro_modes * (
         1 - prop_troctolite
     )
-    if layer_3_modes[0] < 0.18 or layer_3_modes[0] > 0.2 or layer_3_modes[2] < 0.45:
+    if layer_3_modes[0] < 0.149 or layer_3_modes[0] > 0.201 or layer_3_modes[2] < 0.499:
         return 1
 
     for i, element in enumerate(elements):
@@ -415,12 +454,12 @@ def main(parameters):
     # plt.gca().set_yscale("log")
     # plt.savefig("test.pdf")
 
-    if tapp_conc_residual < 0.0153:
+    if tapp_conc_residual < 0.01905:
         print(
             f"{prop_troctolite:.2f} "
-            f"{troctolite_modes.round(2)} "
+            f"{troctolite_modes.round(4)} "
             f"{np.around(upd_troctolite_modes, 4)} "
-            f"{gabbro_modes.round(2)} "
+            f"{gabbro_modes.round(4)} "
             f"{np.around(upd_gabbro_modes, 4)} "
             f"{np.around(layer_3_modes, 4)} "
             f"{prop_ol_tapp_1:.2f} "
@@ -445,22 +484,54 @@ def main(parameters):
 
 begin = perf_counter()
 
+np.set_printoptions(precision=4, floatmode="fixed")
+
 min_res = 1
 
-prop_troctolite = np.linspace(0.09, 0.11, 3)
-mode_ol_troctolite = np.linspace(0.18, 0.23, 3)
-mode_cpx_troctolite = np.linspace(0.0, 0.1, 3)
-mode_ol_gabbro = np.linspace(0.1, 0.12, 3)
-mode_cpx_gabbro = np.linspace(0.16, 0.24, 5)
-prop_ol_tapp_1 = np.linspace(0.3, 0.5, 6)
-prop_cpx_tapp_1 = np.linspace(0.0, 1.0, 6)
-prop_pl_tapp_1 = np.linspace(0.0, 0.1, 3)
-prop_ol_melt_2 = np.linspace(0.2, 0.35, 4)
-prop_cpx_melt_2 = np.linspace(0.2, 0.4, 6)
-prop_pl_melt_2 = np.linspace(0.65, 0.75, 3)
-mgo_repl = np.linspace(10.1, 10.2, 1)
-mgo_tapp = np.linspace(7.7, 7.8, 1)
-min_lim_slope = np.linspace(-0.2, -0.18, 1)
+# prop_troctolite = np.linspace(0.1, 0.3, 6)
+# mode_ol_troctolite = np.linspace(0.2, 0.4, 6)
+# mode_cpx_troctolite = np.linspace(0.0, 0.1, 6)
+# mode_ol_gabbro = np.linspace(0.05, 0.2, 6)
+# mode_cpx_gabbro = np.linspace(0.2, 0.35, 6)
+# prop_ol_tapp_1 = np.linspace(0.1, 0.3, 5)
+# prop_cpx_tapp_1 = np.linspace(0.25, 0.45, 5)
+# prop_pl_tapp_1 = np.linspace(0.0, 0.2, 5)
+# prop_ol_melt_2 = np.linspace(0.2, 0.4, 5)
+# prop_cpx_melt_2 = np.linspace(0.3, 0.5, 5)
+# prop_pl_melt_2 = np.linspace(0.6, 0.8, 5)
+# mgo_repl = np.linspace(10.0, 10.4, 3)
+# mgo_tapp = np.linspace(7.6, 7.8, 3)
+# min_lim_slope = np.linspace(-0.24, -0.2, 3)
+
+prop_troctolite = np.linspace(0.2, 0.2, 1)
+mode_ol_troctolite = np.linspace(0.25, 0.27, 3)
+mode_cpx_troctolite = np.linspace(0.0, 0.02, 3)
+mode_ol_gabbro = np.linspace(0.03, 0.05, 3)
+mode_cpx_gabbro = np.linspace(0.45, 0.47, 3)
+prop_ol_tapp_1 = np.linspace(0.02, 0.04, 3)
+prop_cpx_tapp_1 = np.linspace(0.0, 0.1, 2)
+prop_pl_tapp_1 = np.linspace(0.02, 0.04, 3)
+prop_ol_melt_2 = np.linspace(0.0, 0.2, 11)
+prop_cpx_melt_2 = np.linspace(0.70, 0.72, 3)
+prop_pl_melt_2 = np.linspace(0.72, 0.74, 3)
+mgo_repl = np.linspace(10.2, 10.4, 3)
+mgo_tapp = np.linspace(7.6, 7.8, 3)
+min_lim_slope = np.linspace(-0.2, -0.2, 1)
+
+# prop_troctolite = np.linspace(0.0, 0.1, 11)
+# mode_ol_troctolite = np.linspace(0.25, 0.4, 16)
+# mode_cpx_troctolite = np.linspace(0.0, 0.1, 11)
+# mode_ol_gabbro = np.linspace(0.13, 0.15, 3)
+# mode_cpx_gabbro = np.linspace(0.19, 0.22, 4)
+# prop_ol_tapp_1 = np.linspace(0.0, 0.3, 1)
+# prop_cpx_tapp_1 = np.linspace(0.0, 0.5, 1)
+# prop_pl_tapp_1 = np.linspace(0.0, 0.2, 1)
+# prop_ol_melt_2 = np.linspace(0.0, 0.4, 1)
+# prop_cpx_melt_2 = np.linspace(0.0, 0.5, 1)
+# prop_pl_melt_2 = np.linspace(0.0, 0.8, 1)
+# mgo_repl = np.linspace(10.0, 10.7, 8)
+# mgo_tapp = np.linspace(7.6, 7.8, 3)
+# min_lim_slope = np.linspace(-0.21, -0.19, 3)
 
 if __name__ == "__main__":
     with Pool(processes=104) as pool:
@@ -522,9 +593,10 @@ print(perf_counter() - begin, min_res)
 #     )
 # )
 
-# 0.08 [0.25 0.   0.75] [0.1818 0.     0.8182] [0.13 0.25 0.62] [0.1983 0.3814 0.4203]
-# [0.197  0.3508 0.4522] 0.50 0.20 0.25 0.10 0.10 0.60
-# 10.1 7.7 -0.20 0.18026 0.36411 2.020 0.00694
-# 0.11 [0.25 0.   0.75] [0.2 0.  0.8] [0.13 0.25 0.62] [0.1983 0.3814 0.4203]
-# [0.1985 0.3394 0.4621] 0.40 0.30 0.20 0.10 0.10 0.60
-# 10.1 7.7 -0.20 0.18818 0.38012 2.020 0.00696
+# 0.15 [0.35 0.   0.65] [0.3011 0.     0.6989] [0.1  0.25 0.65] [0.1702 0.3457 0.484 ]
+# [0.1898 0.2939 0.5163] 0.20 0.40 0.00 0.20 0.35 0.65 10.2 7.7 -0.21 0.16572 0.38938
+# 2.350 0.00948
+
+# 0.24 [0.32 0.03 0.65] [0.2764 0.0217 0.7019] [0.09 0.23 0.68] [0.1749 0.3391 0.486 ]
+# [0.1993 0.2629 0.5378] 0.20 0.33 0.00 0.13 0.34 0.68 10.2 7.7 -0.21 0.17220 0.40460
+# 2.350 0.00919
