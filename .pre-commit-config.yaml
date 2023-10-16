@@ -12,7 +12,7 @@ ci:
 
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
     -   id: check-ast
     -   id: check-builtin-literals
@@ -37,7 +37,7 @@ repos:
     -   id: isort
         args: ["--profile", "black", "--filter-files"]
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.13.0
+    rev: v3.15.0
     hooks:
     -   id: pyupgrade
 -   repo: https://github.com/PyCQA/flake8
