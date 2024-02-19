@@ -109,9 +109,7 @@ class Katz:
         if self.original_params:
             F_cpx_out = self.M_cpx / (self.r0 + self.r1 * pressure)
         else:
-            F_cpx_out = clip(
-                self.D1 + self.D2 * pressure + self.D3 * pressure**2, 0, 1
-            )
+            F_cpx_out = clip(self.D1 + self.D2 * pressure + self.D3 * pressure**2, 0, 1)
         T_cpx_out = F_cpx_out ** (1 / self.β1) * (T_liq_lherz - T_sol) + T_sol
         return T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out
 
