@@ -23,7 +23,7 @@ def run_integrator(part_arr, ode_dX, X_spl_in, X_gnt_out, cs_old):
                 D[mask_step],
                 ri[mask_step],
                 val[mask_step],
-                *extra_args
+                *extra_args,
             )
             D_bulk, P_bulk = ones(cs.size), ones(cs.size)
             D_bulk[mask_step], P_bulk[mask_step] = Dn @ Fn, Dn @ pn

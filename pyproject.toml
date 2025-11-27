@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling>=1.24.2", "hatch-vcs>=0.3.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bdd21"
+dependencies = [
+    "matplotlib >= 3.9",
+    "numba >= 0.61",
+    "numpy >= 2.0",
+    "scipy >= 1.14",
+]
+requires-python = ">=3.11"
+authors = [
+    { name = "Thomas Duvernay", email = "thomas.duvernay@proton.me" },
+    { name = "Patrick Ball" },
+    { name = "Shihao Jiang", email = "shihao.jiang1@anu.edu.au" },
+]
+maintainers = [
+    { name = "Thomas Duvernay", email = "thomas.duvernay@proton.me" },
+]
+description = "Model peridotite melting, melt chemistry, and magmatic differentiation"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICEN[CS]E.*"]
+keywords = [
+    "peridotite melting",
+    "trace element chemistry",
+    "magmatic differentiation",
+    "RMTX",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+dev = ["build", "pre-commit", "pytest", "ruff"]
+
+[project.urls]
+Repository = "https://github.com/Patol75/BDD21"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.ruff]
+exclude = ["archive", "data", "example"]
