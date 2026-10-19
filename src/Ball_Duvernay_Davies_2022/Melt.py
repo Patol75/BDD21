@@ -119,9 +119,7 @@ class Katz:
 
         if presGPa > 8:  # Assume parameterisation does not apply
             return 0
-        (T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out) = self.calcSolLiqCpxOut(
-            presGPa
-        )
+        T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out = self.calcSolLiqCpxOut(presGPa)
         # Determine accurate bracket of melt fraction values within which the
         # sought melt fraction lies
         bracket = detBracket(0, F_cpx_out, 9, checkCpx, funcCpx)
@@ -147,7 +145,7 @@ class Katz:
         def deriv(t, y):
             presGPa = t
             temp, F = y
-            (T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out) = self.calcSolLiqCpxOut(
+            T_sol, T_liq_lherz, T_liq, F_cpx_out, T_cpx_out = self.calcSolLiqCpxOut(
                 presGPa
             )
             if F <= 0:  # Update F in case solidus has been crossed
